@@ -1,0 +1,14 @@
+@import "tailwindcss";
+/* This makes the game container fill the whole screen behind the navbar */
+#game-container {
+  width: 100%;
+  height: calc(100vh - 60px); /* Adjust 60px to your navbar height */
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000; /* Matching space */
+}
+
+canvas {
+  display: block;
+}
