@@ -6,8 +6,8 @@ import { HomeScene } from "./scenes/HomeScene";
 export const config = {
   type: Phaser.AUTO,
   parent: "game-container",
-  width: 500, // Increased width to show more background
-  height: 800, // Increased height for better mobile feel
+  width: 500,
+  height: 800,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

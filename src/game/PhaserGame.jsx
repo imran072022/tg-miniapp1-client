@@ -57,7 +57,7 @@ const PhaserGame = ({
         gameRef.current = null;
       }
     };
-  }, [equippedCard, stats, selectedLevel, onEnd]); // Runs when core game props change (not on pause)
+  }, [equippedCard, stats, selectedLevel, onEnd, isPaused]); // Runs when core game props change (not on pause)
 
   // Sync Pause State
   useEffect(() => {
