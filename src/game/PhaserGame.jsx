@@ -1,77 +1,38 @@
 import React, { useEffect, useRef } from "react";
 import Phaser from "phaser";
-import { MainGame } from "./scenes/MainGame";
+import { getGameConfig } from "./config";
+import { useGame } from "../hooks/useGame";
 
-const PhaserGame = ({
-  onEnd,
-  stats,
-  equippedCard,
-  isFighting,
-  selectedLevel,
-  isPaused,
-}) => {
-  const gameContainerRef = useRef(null);
+const PhaserGame = () => {
   const gameRef = useRef(null);
+  const { handleGameOver, equippedCard, selectedLevel } = useGame();
 
   useEffect(() => {
-    // 1. If a game instance already exists, destroy it immediately
-    if (gameRef.current) {
-      gameRef.current.destroy(true);
-      gameRef.current = null;
+    // Inside PhaserGame.jsx useEffect
+    if (!gameRef.current) {
+      const config = getGameConfig("phaser-container");
+      gameRef.current = new Phaser.Game(config);
+
+      // Crucial: Don't send data until the scene is actually switched
+      gameRef.current.events.once("ready", () => {
+        // We start the PRELOADER first (it's index 0 in your config)
+        // Then the Preloader will trigger MainGame
+        gameRef.current.scene.start("Preloader", {
+          equippedCard,
+          selectedLevel,
+        });
+      });
     }
 
-    // 2. Clean up any leftover canvases from the DOM before starting
-    const existingCanvas = gameContainerRef.current?.querySelector("canvas");
-    if (existingCanvas) {
-      existingCanvas.remove();
-    }
-
-    const config = {
-      type: Phaser.AUTO,
-      parent: gameContainerRef.current,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      physics: {
-        default: "arcade",
-        arcade: { gravity: { y: 0 }, debug: false },
-      },
-      scene: [MainGame],
-    };
-
-    // 3. Create the game
-    const game = new Phaser.Game(config);
-    gameRef.current = game;
-    game.isPaused = isPaused;
-
-    // Start scene with data
-    game.scene.start("MainGame", { onEnd, stats, equippedCard, selectedLevel });
-
-    // 4. Cleanup function
     return () => {
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
-  }, [equippedCard, stats, selectedLevel, onEnd, isPaused]); // Runs when core game props change (not on pause)
+  }, [equippedCard, selectedLevel, handleGameOver]);
 
-  // Sync Pause State
-  useEffect(() => {
-    if (gameRef.current) {
-      gameRef.current.isPaused = isPaused;
-    }
-  }, [isPaused]);
-
-  return (
-    <div
-      ref={gameContainerRef}
-      className="absolute inset-0 w-full h-full overflow-hidden"
-    />
-  );
+  return <div id="phaser-container" className="fixed inset-0 z-[60]" />;
 };
 
 export default PhaserGame;

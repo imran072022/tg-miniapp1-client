@@ -4,248 +4,222 @@ export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
   }
-  // init receives data from PhaserGame.js wrapper
-  init(data) {
-    this.onEnd = data.onEnd;
-    this.stats = data.stats;
-    this.equippedCard = data.equippedCard || "STARTER";
-    this.selectedLevel = data.selectedLevel;
-    // Telegram / User Logic
-    if (window.Telegram && window.Telegram.WebApp) {
-      const webAppData = window.Telegram.WebApp.initDataUnsafe;
-      this.userId = webAppData.user
-        ? webAppData.user.id.toString()
-        : "dev_user";
-    } else {
-      this.userId = "dev_user";
-    }
 
-    this.initStats();
-  }
-  initStats() {
-    this.hp = 100;
+  // DATA passed from PhaserGame.jsx via scene.start()
+  init(data) {
+    console.log("Phaser received card:", data.equippedCard);
+    this.equippedCard = data.equippedCard || "STARTER";
+    this.selectedLevel = data.selectedLevel || 1;
     this.gold = 0;
-    this.difficulty = 1;
-    this.fireRate = 400;
     this.isGameOver = false;
-    this.hasDoubleShot = false;
-    this.ultimateEnergy = 0;
-    this.isUltimateActive = false;
   }
-  preload() {
-    this.load.image("nebula", "assets/battlefieldBg.jpeg");
-    this.load.image("plane", "assets/plane.png");
-  }
+
   create() {
     const { width, height } = this.scale;
-    // 1. Background & Groups
-    this.bg = this.add.tileSprite(
-      width / 2,
-      height / 2,
-      width,
-      height,
-      "nebula",
-    );
+
+    // 1. STOP THE FLICKERING: Set a solid black background first
+    this.cameras.main.setBackgroundColor("#000000");
+
+    // 2. BACKGROUND: Ensure depth is behind everything
+    this.bg = this.add
+      .tileSprite(0, 0, width, height, "nebula")
+      .setOrigin(0, 0)
+      .setDepth(-1);
+
+    // 3. GROUPS
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
-    this.boosters = this.physics.add.group();
-    // 2. Player setup
-    this.player = this.physics.add.sprite(width / 2, height - 100, "plane");
-    this.player.setScale(0.25).setDepth(10).setCollideWorldBounds(true);
-    // SMOOTHNESS: Add friction/drag (call after player exists)
-    this.player.setDragX(1500);
-    this.player.setDamping(false); // Using velocity-based movement
-    this.createTextures();
-    // 3. UI
-    this.goldText = this.add.text(20, 20, `GOLD: ${this.gold}`, {
-      fontSize: "20px",
-      fill: "#FFD700",
-      fontStyle: "bold",
-    });
-    this.hpBar = this.add.graphics();
-    this.ultBar = this.add.graphics();
-    this.updateUI();
-    // 4. Ultimate Button
-    this.ultBtn = this.add.container(width - 60, height - 60).setDepth(20);
-    const ultCircle = this.add
-      .circle(0, 0, 35, 0x333333)
-      .setStrokeStyle(2, 0xffffff);
-    this.ultText = this.add
-      .text(0, 0, "ULT", { fontSize: "18px" })
-      .setOrigin(0.5);
-    this.ultBtn.add([ultCircle, this.ultText]);
-    this.ultBtn.setInteractive(
-      new Phaser.Geom.Circle(0, 0, 35),
-      Phaser.Geom.Circle.Contains,
-    );
-    this.ultBtn.on("pointerdown", () => this.fireIronBeam());
-    // 5. Timers
-    this.fireTimer = this.time.addEvent({
-      delay: this.fireRate,
-      callback: this.fire,
-      callbackScope: this,
-      loop: true,
-    });
-    this.spawnTimer = this.time.addEvent({
-      delay: 1200,
-      callback: this.spawnEnemyBatch,
+
+    // 4. SHIP SELECTION LOGIC
+    const shipConfigs = {
+      STARTER: {
+        key: "plane",
+        scale: 0.15,
+        fireRate: 250,
+        bVel: -600,
+        bScale: 0.6,
+        shotType: "SINGLE", // Standard shot
+        hp: 100,
+      },
+      TITAN: {
+        key: "spaceship1",
+        scale: 0.1,
+        fireRate: 180,
+        bVel: -800,
+        bScale: 0.8,
+        shotType: "QUAD", // Special ability
+        hp: 200,
+      },
+    };
+    this.shipConfig = shipConfigs[this.equippedCard] || shipConfigs.STARTER;
+    this.player = this.physics.add
+      .sprite(width / 2, height - 120, this.shipConfig.key)
+      .setScale(this.shipConfig.scale)
+      .setCollideWorldBounds(true)
+      .setDepth(10);
+    this.player.body.setAllowGravity(false);
+    this.player.hp = this.shipConfig.hp;
+
+    // 6. TIMERS both for bullets and enemies
+    this.time.addEvent({
+      delay: this.shipConfig.fireRate,
+      callback: this.fireBullet,
       callbackScope: this,
       loop: true,
     });
     this.time.addEvent({
-      delay: 8000,
-      callback: this.spawnBooster,
+      delay: 1000, // Spawns one enemy every 1 second
+      callback: this.spawnEnemy,
       callbackScope: this,
       loop: true,
     });
-    // 6. Input & Collisions
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.physics.add.overlap(this.bullets, this.enemies, (b, e) =>
-      this.hitEnemy(b, e),
-    );
-    this.physics.add.overlap(this.player, this.enemies, (p, e) =>
-      this.playerHit(e),
-    );
-    this.physics.add.overlap(this.player, this.boosters, (p, b) =>
-      this.collectBooster(b),
-    );
-  }
-  update() {
-    const { height } = this.scale;
-    if (this.game.isPaused) {
-      this.physics.pause();
-      return;
-    } else {
-      this.physics.resume();
-    }
-    if (this.isGameOver) return;
-    this.bg.tilePositionY -= 2;
-    this.player.setVelocityX(0);
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-450);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(450);
-    } else if (this.input.activePointer.isDown) {
-      const pointer = this.input.activePointer;
-      const target = pointer.event && pointer.event.target;
-      const tag = target && target.tagName && target.tagName.toUpperCase();
-      const isCanvasTarget =
-        !target || tag === "CANVAS" || target.id === "game-container";
-      if (isCanvasTarget) {
-        this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.15);
-      }
-    }
-    const paddingFromBottom = 120;
-    this.player.y = height - paddingFromBottom;
-  }
-  // --- HELPER METHODS ---
-  createTextures() {
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-    // Neon Bullet
-    g.fillStyle(0xffffff, 1).fillCircle(10, 10, 4);
-    g.generateTexture("neon_bullet", 20, 20);
-    g.clear();
-    // Enemy
-    g.fillStyle(0xff0000, 1).fillTriangle(0, 30, 30, 30, 15, 0);
-    g.generateTexture("e_1", 30, 30);
-    g.clear();
-    // Booster
-    g.fillStyle(0xffff00, 1).fillCircle(15, 15, 10);
-    g.generateTexture("b_double", 30, 30);
-    g.clear();
-    // Ultimate Beam
-    g.fillStyle(0xffffff, 0.8).fillRect(0, 0, 40, 800);
-    g.generateTexture("iron_beam", 40, 800);
-  }
-  fire() {
-    if (this.isGameOver || this.isUltimateActive || this.game.isPaused) return;
-    if (this.hasDoubleShot) {
-      this.createBullet(this.player.x - 15);
-      this.createBullet(this.player.x + 15);
-    } else {
-      this.createBullet(this.player.x);
-    }
-  }
-  createBullet(x) {
-    const b = this.bullets.create(x, this.player.y - 20, "neon_bullet");
-    b.body.setVelocityY(-600);
-    if (this.equippedCard === "TITAN") b.setTint(0xffaa00).setScale(1.5);
-    if (this.equippedCard === "PLASMA") b.setTint(0x00ffff);
-  }
-  spawnEnemyBatch() {
-    if (this.isGameOver || this.game.isPaused) return;
-    const e = this.enemies.create(
-      Phaser.Math.Between(50, this.scale.width - 50),
-      -50,
-      "e_1",
-    );
-    e.body.setVelocityY(200 + this.difficulty * 2);
-    this.difficulty += 0.1;
-  }
-  playerHit(enemy) {
-    enemy.destroy();
-    this.hp -= 25;
-    this.cameras.main.shake(200, 0.01);
-    this.updateUI();
-    if (this.hp <= 0) this.triggerGameOver();
-  }
-  updateUI() {
-    this.hpBar.clear().fillStyle(0x333333).fillRect(20, 50, 100, 8);
-    this.hpBar.fillStyle(0x00ff00).fillRect(20, 50, this.hp, 8);
-    this.ultBar.clear().fillStyle(0x333333).fillRect(20, 65, 100, 6);
-    this.ultBar.fillStyle(0x00aaff).fillRect(20, 65, this.ultimateEnergy, 6);
-  }
-  async triggerGameOver() {
-    this.isGameOver = true;
-    this.physics.pause();
-    if (this.onEnd) {
-      this.onEnd(this.gold);
-    }
-  }
-  fireIronBeam() {
-    if (this.ultimateEnergy < 100 || this.isUltimateActive) return;
-    this.isUltimateActive = true;
-    this.ultimateEnergy = 0;
-    this.updateUI();
-    const beam = this.add
-      .sprite(this.player.x, this.player.y, "iron_beam")
-      .setOrigin(0.5, 1);
-    this.tweens.add({
-      targets: beam,
-      alpha: 0,
-      duration: 1000,
-      onUpdate: () => {
-        beam.x = this.player.x;
-        this.enemies.children.each((e) => {
-          if (e && Math.abs(e.x - beam.x) < 40) e.destroy();
-        });
-      },
-      onComplete: () => {
-        beam.destroy();
-        this.isUltimateActive = false;
-      },
+
+    // 7. COLLISIONS
+    this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
+      bullet.destroy();
+      enemy.destroy();
+      this.gold += 10;
+      this.game.events.emit("UPDATE_GOLD", this.gold);
+    });
+
+    this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
+      enemy.destroy();
+      this.takeDamage(20);
     });
   }
-  spawnBooster() {
-    if (this.isGameOver || this.game.isPaused) return;
-    const b = this.boosters.create(
-      Phaser.Math.Between(50, this.scale.width - 50),
-      -50,
-      "b_double",
+
+  takeDamage(amount) {
+    if (this.isGameOver) return;
+    this.player.hp -= amount;
+    this.player.setTint(0xff0000);
+    this.game.events.emit("UPDATE_HP", this.player.hp);
+
+    this.time.delayedCall(100, () => {
+      if (this.player.active) this.player.clearTint();
+    });
+
+    if (this.player.hp <= 0) {
+      this.isGameOver = true;
+      this.physics.pause();
+      this.game.events.emit("GAME_OVER", this.gold);
+    }
+  }
+  showMuzzleFlash(xOffset) {
+    // 1. Check the key: ensure this matches your this.load.image("flash", ...)
+    const flash = this.add
+      .sprite(this.player.x + xOffset, this.player.y - 40, "flash")
+      .setDepth(20) // Higher depth so it's definitely on top
+      .setScale(0.8) // Increased from 0.1 so you can actually see it
+      .setAlpha(1)
+      .setTint(0xffffff);
+
+    // 2. The Animation
+    this.tweens.add({
+      targets: flash,
+      scale: 2, // Grow slightly
+      alpha: 0, // Fade out
+      duration: 60, // Very fast flash
+      onComplete: () => flash.destroy(),
+    });
+  }
+  fireBullet() {
+    if (this.isGameOver || !this.player.active) return;
+
+    if (this.shipConfig.shotType === "QUAD") {
+      // Fire bullets + Show flashes at the wing tips/cannons
+      this.createBullet(-15, 0);
+      this.createBullet(15, 0);
+      this.createBullet(-20, -150);
+      this.createBullet(20, 150);
+
+      // Two muzzle flashes look great for a dual-cannon ship
+      this.showMuzzleFlash(-15);
+      this.showMuzzleFlash(15);
+    } else {
+      this.createBullet(0, 0);
+      this.showMuzzleFlash(0);
+    }
+  }
+
+  // Helper function to create the actual bullet object
+  createBullet(xOffset, velocityXOffset) {
+    const bullet = this.bullets.create(
+      this.player.x + xOffset,
+      this.player.y - 30,
+      "energy_bullet",
     );
-    b.body.setVelocityY(150);
+
+    if (bullet) {
+      bullet.setVelocityY(this.shipConfig.bVel);
+      bullet.setVelocityX(velocityXOffset);
+      bullet.setDepth(5);
+      bullet.body.setAllowGravity(false);
+      bullet.setBlendMode(Phaser.BlendModes.ADD);
+
+      if (this.equippedCard === "TITAN") {
+        bullet.setTint(0xffaa00);
+        bullet.setScale(1.2);
+
+        // --- NEW TRAIL LOGIC ---
+        // Create a local emitter just for this bullet
+        const emitter = this.add.particles(0, 0, "energy_bullet", {
+          speed: 0,
+          scale: { start: 0.4, end: 0 },
+          alpha: { start: 0.5, end: 0 },
+          lifespan: 300,
+          blendMode: "ADD",
+          follow: bullet, // Attached directly to this bullet!
+          tint: 0xffaa00,
+          gravityY: 400,
+        });
+
+        // Crucial: Tell the emitter to stop when the bullet is gone
+        bullet.once("destroy", () => {
+          emitter.stop(); // Stop spawning new particles
+          // Delete the emitter object after the last particles fade away
+          this.time.delayedCall(300, () => emitter.destroy());
+        });
+        // -----------------------
+      } else {
+        bullet.setTint(0x00ffff);
+        bullet.setScale(0.8);
+      }
+    }
   }
-  collectBooster(booster) {
-    booster.destroy();
-    this.hasDoubleShot = true;
-    this.time.delayedCall(5000, () => (this.hasDoubleShot = false));
+
+  spawnEnemy() {
+    if (this.isGameOver) return;
+
+    const x = Phaser.Math.Between(50, this.scale.width - 50);
+    const enemy = this.enemies.create(x, -50, "e_1");
+    if (enemy) {
+      enemy
+        .setVelocityY(200 + this.selectedLevel * 5)
+        .setDepth(5)
+        .setTint(0xff4444);
+      enemy.body.setAllowGravity(false);
+    }
   }
-  hitEnemy(bullet, enemy) {
-    bullet.destroy();
-    this.gold += 10;
-    this.goldText.setText(`GOLD: ${this.gold}`);
-    this.ultimateEnergy = Math.min(100, this.ultimateEnergy + 10);
-    this.updateUI();
-    enemy.destroy();
+
+  update() {
+    if (this.isGameOver) return;
+
+    // Scroll Background
+    this.bg.tilePositionY -= 1;
+
+    // CONTINUOUS TOUCH MOVEMENT
+    const pointer = this.input.activePointer;
+    if (pointer.isDown) {
+      // Smooth movement (Lerp)
+      this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.2);
+    }
+
+    // CLEANUP
+    this.bullets.children.each((b) => {
+      if (b.y < -50) b.destroy();
+    });
+    this.enemies.children.each((e) => {
+      if (e.y > this.scale.height + 50) e.destroy();
+    });
   }
 }

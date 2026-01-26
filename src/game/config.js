@@ -1,16 +1,16 @@
 import Phaser from "phaser";
 import { MainGame } from "./scenes/MainGame";
-import { ShopScene } from "./scenes/ShopScene";
-import { HomeScene } from "./scenes/HomeScene";
+import { Preloader } from "./scenes/Preloader";
 
-export const config = {
+export const getGameConfig = (containerId) => ({
   type: Phaser.AUTO,
-  parent: "game-container",
-  width: 500,
-  height: 800,
+  parent: containerId,
+  backgroundColor: "#000000",
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: window.innerWidth,
+    height: window.innerHeight,
   },
   physics: {
     default: "arcade",
@@ -19,5 +19,5 @@ export const config = {
       debug: false,
     },
   },
-  scene: [MainGame, ShopScene, HomeScene],
-};
+  scene: [Preloader, MainGame],
+});
