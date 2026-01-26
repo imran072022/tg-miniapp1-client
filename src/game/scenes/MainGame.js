@@ -114,8 +114,8 @@ export class MainGame extends Phaser.Scene {
       this.bullets.add(bullet);
 
       // FIX: Set velocities AFTER adding to group to ensure they "stick"
-      bullet.body.setVelocityY(this.shipConfig.bVel);
-      bullet.body.setVelocityX(vXOff);
+      bullet.body.velocity.y = this.shipConfig.bVel;
+      bullet.body.velocity.x = vXOff;
     };
     if (this.shipConfig.shotType === "QUAD") {
       spawnShot(-15, 0);
@@ -164,11 +164,16 @@ export class MainGame extends Phaser.Scene {
     if (pointer.isDown) {
       // Smooth movement (Lerp)
       this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.2);
+      this.player.y = Phaser.Math.Linear(this.player.y, pointer.y - 50, 0.2);
     }
     // Combined Bullet Logic
     this.bullets.children.each((b) => {
       b.update(); // Runs the Projectile's internal update
       if (b.y < -50) b.destroy(); // Cleans up off-screen
+    });
+    // Inside update() in MainGame.js
+    this.enemies.children.each((e) => {
+      e.update(); // This ensures drawHealthBar() is called as the enemy moves down
     });
     // Enemy Cleanup
     this.enemies.children.each((e) => {
