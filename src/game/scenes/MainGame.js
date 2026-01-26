@@ -18,7 +18,6 @@ export class MainGame extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-
     // 1. STOP THE FLICKERING: Set a solid black background first
     this.cameras.main.setBackgroundColor("#000000");
 
@@ -77,10 +76,69 @@ export class MainGame extends Phaser.Scene {
     });
 
     // 7. COLLISIONS
+    // Scenario A: Bullet hits Enemy
     this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
+      // Capture position before anything is destroyed
+      const ex = enemy.x;
+      const ey = enemy.y;
       bullet.destroy();
-      enemy.takeDamage(10); // The enemy handles the rest!
+      // Check if enemy is already 'dying' to prevent double gold
+      if (enemy.active && !enemy.isDead) {
+        enemy.takeDamage(10);
+        // Only show gold if this specific hit killed the enemy
+        if (enemy.hp <= 0) {
+          this.showGoldPopup(ex, ey, 10);
+        }
+      }
     });
+    // Scenario B: Player ship crashes into Enemy
+    this.physics.add.overlap(this.player, this.enemies, (_, enemy) => {
+      if (enemy.active && !enemy.isDead) {
+        const ex = enemy.x;
+        const ey = enemy.y;
+        enemy.die();
+        this.takeDamage(20);
+        this.showGoldPopup(ex, ey, 10);
+      }
+    });
+    // 8. UI / HUD
+    this.goldText = this.add
+      .text(20, 20, `GOLD: ${this.gold}`, {
+        fontSize: "20px",
+        fill: "#ffd700",
+        fontWeight: "bold",
+        fontFamily: "Arial",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setDepth(100);
+  }
+
+  showGoldPopup(x, y, amount) {
+    const text = this.add
+      .text(x, y, `+${amount}`, {
+        fontSize: "20px",
+        fill: "#ffd700",
+        fontWeight: "bold",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(50);
+    // 2. Animate it floating up and fading out
+    this.tweens.add({
+      targets: text,
+      y: y - 50,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => text.destroy(),
+    });
+    // 3. Update the actual gold count
+    this.gold += amount;
+    // 4. FIX: Update the HUD text on the screen!
+    if (this.goldText) {
+      this.goldText.setText(`GOLD: ${this.gold}`);
+    }
   }
 
   takeDamage(amount) {
@@ -92,7 +150,6 @@ export class MainGame extends Phaser.Scene {
     this.time.delayedCall(100, () => {
       if (this.player.active) this.player.clearTint();
     });
-
     if (this.player.hp <= 0) {
       this.isGameOver = true;
       this.physics.pause();
@@ -162,9 +219,15 @@ export class MainGame extends Phaser.Scene {
     // CONTINUOUS TOUCH MOVEMENT
     const pointer = this.input.activePointer;
     if (pointer.isDown) {
-      // Smooth movement (Lerp)
+      // 1. Smooth X movement
       this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.2);
-      this.player.y = Phaser.Math.Linear(this.player.y, pointer.y - 50, 0.2);
+      // 2. Smooth Y movement with the Offset and the Safety Clamp (Combined)
+      const targetY = Phaser.Math.Clamp(
+        pointer.y - 50,
+        100,
+        this.scale.height - 50,
+      );
+      this.player.y = Phaser.Math.Linear(this.player.y, targetY, 0.2);
     }
     // Combined Bullet Logic
     this.bullets.children.each((b) => {
