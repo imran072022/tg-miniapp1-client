@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import Enemy from "../entities/enemies/Enemy";
+import Projectile from "../abilities/Projectiles";
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -77,14 +79,7 @@ export class MainGame extends Phaser.Scene {
     // 7. COLLISIONS
     this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
       bullet.destroy();
-      enemy.destroy();
-      this.gold += 10;
-      this.game.events.emit("UPDATE_GOLD", this.gold);
-    });
-
-    this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
-      enemy.destroy();
-      this.takeDamage(20);
+      enemy.takeDamage(10); // The enemy handles the rest!
     });
   }
 
@@ -104,120 +99,78 @@ export class MainGame extends Phaser.Scene {
       this.game.events.emit("GAME_OVER", this.gold);
     }
   }
-  showMuzzleFlash(xOffset) {
-    // 1. Check the key: ensure this matches your this.load.image("flash", ...)
-    const flash = this.add
-      .sprite(this.player.x + xOffset, this.player.y - 40, "flash")
-      .setDepth(20) // Higher depth so it's definitely on top
-      .setScale(0.8) // Increased from 0.1 so you can actually see it
-      .setAlpha(1)
-      .setTint(0xffffff);
-
-    // 2. The Animation
-    this.tweens.add({
-      targets: flash,
-      scale: 2, // Grow slightly
-      alpha: 0, // Fade out
-      duration: 60, // Very fast flash
-      onComplete: () => flash.destroy(),
-    });
-  }
   fireBullet() {
     if (this.isGameOver || !this.player.active) return;
+    const spawnShot = (xOff, vXOff) => {
+      const bullet = new Projectile(
+        this,
+        this.player.x + xOff,
+        this.player.y - 30,
+        "energy_bullet",
+        this.shipConfig,
+      );
 
+      // FIX: Add to group FIRST
+      this.bullets.add(bullet);
+
+      // FIX: Set velocities AFTER adding to group to ensure they "stick"
+      bullet.body.setVelocityY(this.shipConfig.bVel);
+      bullet.body.setVelocityX(vXOff);
+    };
     if (this.shipConfig.shotType === "QUAD") {
-      // Fire bullets + Show flashes at the wing tips/cannons
-      this.createBullet(-15, 0);
-      this.createBullet(15, 0);
-      this.createBullet(-20, -150);
-      this.createBullet(20, 150);
-
-      // Two muzzle flashes look great for a dual-cannon ship
-      this.showMuzzleFlash(-15);
-      this.showMuzzleFlash(15);
+      spawnShot(-15, 0);
+      spawnShot(15, 0);
+      spawnShot(-20, -150);
+      spawnShot(20, 150);
+      // We can still trigger a simple flash here or move it to Projectile
+      this.triggerMuzzleFlash(0);
     } else {
-      this.createBullet(0, 0);
-      this.showMuzzleFlash(0);
+      spawnShot(0, 0);
+      this.triggerMuzzleFlash(0);
     }
   }
-
-  // Helper function to create the actual bullet object
-  createBullet(xOffset, velocityXOffset) {
-    const bullet = this.bullets.create(
-      this.player.x + xOffset,
-      this.player.y - 30,
-      "energy_bullet",
-    );
-
-    if (bullet) {
-      bullet.setVelocityY(this.shipConfig.bVel);
-      bullet.setVelocityX(velocityXOffset);
-      bullet.setDepth(5);
-      bullet.body.setAllowGravity(false);
-      bullet.setBlendMode(Phaser.BlendModes.ADD);
-
-      if (this.equippedCard === "TITAN") {
-        bullet.setTint(0xffaa00);
-        bullet.setScale(1.2);
-
-        // --- NEW TRAIL LOGIC ---
-        // Create a local emitter just for this bullet
-        const emitter = this.add.particles(0, 0, "energy_bullet", {
-          speed: 0,
-          scale: { start: 0.4, end: 0 },
-          alpha: { start: 0.5, end: 0 },
-          lifespan: 300,
-          blendMode: "ADD",
-          follow: bullet, // Attached directly to this bullet!
-          tint: 0xffaa00,
-          gravityY: 400,
-        });
-
-        // Crucial: Tell the emitter to stop when the bullet is gone
-        bullet.once("destroy", () => {
-          emitter.stop(); // Stop spawning new particles
-          // Delete the emitter object after the last particles fade away
-          this.time.delayedCall(300, () => emitter.destroy());
-        });
-        // -----------------------
-      } else {
-        bullet.setTint(0x00ffff);
-        bullet.setScale(0.8);
-      }
-    }
+  // Keep a very simple version for the ship
+  triggerMuzzleFlash(xOff) {
+    const flash = this.add
+      .sprite(this.player.x + xOff, this.player.y - 45, "flash")
+      .setDepth(11)
+      .setScale(0.8);
+    this.tweens.add({
+      targets: flash,
+      scale: 1.2,
+      alpha: 0,
+      duration: 50,
+      onComplete: () => flash.destroy(),
+    });
   }
 
   spawnEnemy() {
     if (this.isGameOver) return;
-
     const x = Phaser.Math.Between(50, this.scale.width - 50);
-    const enemy = this.enemies.create(x, -50, "e_1");
-    if (enemy) {
-      enemy
-        .setVelocityY(200 + this.selectedLevel * 5)
-        .setDepth(5)
-        .setTint(0xff4444);
-      enemy.body.setAllowGravity(false);
-    }
+    // Create an instance of our new Enemy class
+    const enemy = new Enemy(this, x, -50, "e_1", 20);
+    // Add it to the physics group so collisions still work
+    this.enemies.add(enemy);
+    // Set movement
+    enemy.setVelocityY(200 + this.selectedLevel * 5);
   }
 
   update() {
     if (this.isGameOver) return;
-
     // Scroll Background
     this.bg.tilePositionY -= 1;
-
     // CONTINUOUS TOUCH MOVEMENT
     const pointer = this.input.activePointer;
     if (pointer.isDown) {
       // Smooth movement (Lerp)
       this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.2);
     }
-
-    // CLEANUP
+    // Combined Bullet Logic
     this.bullets.children.each((b) => {
-      if (b.y < -50) b.destroy();
+      b.update(); // Runs the Projectile's internal update
+      if (b.y < -50) b.destroy(); // Cleans up off-screen
     });
+    // Enemy Cleanup
     this.enemies.children.each((e) => {
       if (e.y > this.scale.height + 50) e.destroy();
     });
