@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import Enemy from "../entities/enemies/Enemy";
 import Projectile from "../abilities/Projectiles";
+import Boss from "../entities/enemies/Bosses";
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -100,6 +101,7 @@ export class MainGame extends Phaser.Scene {
         this.showGoldPopup(ex, ey, 10);
       }
     });
+
     // 8. UI / HUD
     this.goldText = this.add
       .text(20, 20, `GOLD: ${this.gold}`, {
@@ -177,8 +179,17 @@ export class MainGame extends Phaser.Scene {
   }
   startBossWave() {
     this.currentWave = "BOSS";
-    console.log("Boss Wave Started!");
-    // We will build the actual Boss spawn logic next!
+    if (this.spawnTimer) this.spawnTimer.remove();
+    const { width } = this.scale;
+    // Create the boss and store it in this.boss
+    this.boss = new Boss(this, width / 2, -100, "boss1", 500);
+    // ADD THIS COLLIDER HERE
+    this.physics.add.overlap(this.bullets, this.boss, (boss, bullet) => {
+      bullet.destroy(); // Destroy the bullet
+      boss.takeDamage(10); // Damage the boss
+      // Log to console to verify hits
+      console.log("Boss HP:", boss.hp);
+    });
   }
   takeDamage(amount) {
     if (this.isGameOver) return;
@@ -302,13 +313,17 @@ export class MainGame extends Phaser.Scene {
     if (!this.isGameOver) {
       this.gameTimer += delta; // delta is the time passed since last frame
       // Check for Wave 2 at 20 seconds
-      if (this.currentWave === 1 && this.gameTimer > 10000) {
+      if (this.currentWave === 1 && this.gameTimer > 0) {
         this.startNextWave(2, 800); // Wave 2, faster spawn
       }
       // Check for Boss at 60 seconds
-      if (this.currentWave === 2 && this.gameTimer > 30000) {
+      if (this.currentWave === 2 && this.gameTimer > 0) {
         this.startBossWave();
       }
+    }
+    // ADD THIS: If the boss exists, run its internal update
+    if (this.boss && this.boss.active) {
+      this.boss.update();
     }
   }
 }
