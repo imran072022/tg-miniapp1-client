@@ -15,6 +15,9 @@ export class Preloader extends Phaser.Scene {
     this.load.image("plane", "plane.png");
     this.load.image("spaceship1", "spaceShip1.png");
     this.load.image("flash", "muzzleFlash.png");
+    this.load.image("enemyType1", "enemyType1.png");
+    this.load.image("enemyType2", "enemyType2.png");
+    this.load.image("boss1", "boss1.png");
 
     // We still call this here or in create.
     // Usually, createTextures is best in create() to ensure the renderer is ready.

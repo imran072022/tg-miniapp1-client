@@ -1,23 +1,25 @@
 import Phaser from "phaser";
 
 export default class Enemy extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, texture, hp) {
+  constructor(scene, x, y, texture, hp, type = "STRAIGHT") {
     super(scene, x, y, texture);
 
-    // 1. Add to scene and physics
     scene.add.existing(this);
     scene.physics.add.existing(this);
-    // 2. Setup physics properties
-    if (this.body) {
-      this.body.allowGravity = false;
+
+    if (this.body instanceof Phaser.Physics.Arcade.Body) {
+      this.body.allowGravity = false; // Use the property
+      this.setCollideWorldBounds(true); // Sprite method
+      this.setBounce(1, 0); // Sprite method
     }
+
     this.setDepth(5);
-    this.setTint(0xff4444);
-    // 3. Stats
     this.hp = hp || 20;
-    this.maxHp = this.hp; // Store max HP for the bar percentage
+    this.maxHp = this.hp;
     this.isDead = false;
-    // Create the Graphics object for the health bar
+    this.enemyType = type;
+    this.startX = x;
+    this.randomOffset = Math.random() * 1000;
     this.hpBar = scene.add.graphics();
     this.drawHealthBar();
   }
@@ -62,17 +64,16 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       quantity: 10, // Number of pieces
       emitting: false, // Don't start yet
     });
-    // 2. Explode once
-    explorer.explode();
+    explorer.explode(); // 2. Explode once
     // 3. Clean up the particle manager after it's done
     this.scene.time.delayedCall(500, () => explorer.destroy());
-    // 4. Remove the enemy
-    this.destroy();
+    this.destroy(); // 4. Remove the enemy
   }
 
-  update() {
-    // Move the bar with the enemy
+  update(time) {
+    if (this.isDead || !this.active) return;
     this.drawHealthBar();
+    // Clean up if it leaves the bottom
     if (this.y > this.scene.scale.height + 50) {
       this.hpBar.destroy();
       this.destroy();
