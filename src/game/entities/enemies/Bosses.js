@@ -37,14 +37,22 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   startPattern() {
-    // Move Left and Right across the top
+    const { width } = this.scene.scale;
     this.scene.tweens.add({
       targets: this,
-      x: { from: 50, to: this.scene.scale.width - 50 },
-      duration: 3000,
-      yoyo: true,
-      loop: -1,
+      x: width - 100,
+      duration: 1500,
       ease: "Sine.easeInOut",
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: this,
+          x: { from: width - 100, to: 100 },
+          duration: 3000,
+          yoyo: true,
+          loop: -1,
+          ease: "Sine.easeInOut",
+        });
+      },
     });
   }
 
