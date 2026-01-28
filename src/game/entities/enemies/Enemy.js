@@ -70,12 +70,12 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.destroy(); // 4. Remove the enemy
   }
 
+  // Enemy.js - Keep your update clean
   update(time) {
     if (this.isDead || !this.active) return;
     this.drawHealthBar();
-    // Clean up if it leaves the bottom
     if (this.y > this.scene.scale.height + 50) {
-      this.hpBar.destroy();
+      if (this.hpBar) this.hpBar.destroy();
       this.destroy();
     }
   }

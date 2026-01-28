@@ -10,6 +10,7 @@ export class MainGame extends Phaser.Scene {
   }
 
   // DATA passed from PhaserGame.jsx via scene.start()
+  // ============ Initialization (1) =============
   init(data) {
     console.log("Phaser received card:", data.equippedCard);
     this.equippedCard = data.equippedCard || "STARTER";
@@ -19,7 +20,9 @@ export class MainGame extends Phaser.Scene {
     this.gameTimer = 0;
     this.currentWave = 1;
     this.spawnRate = 1000;
+    this.currentLevel = 1; // Tracks how many cycles we've completed
   }
+  // ============ Functions called inside create() =============
   setupPlayer() {
     const { width, height } = this.scale;
     // Get the config based on what the user equipped (from init)
@@ -87,6 +90,7 @@ export class MainGame extends Phaser.Scene {
       })
       .setDepth(100);
   }
+  // ============ Scene Creation (2) =============
   create() {
     const { width, height } = this.scale;
     // 1. Visuals & Background
@@ -108,7 +112,7 @@ export class MainGame extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, width, height, true, true, false, false);
     this.physics.world.TILE_BIAS = 32;
   }
-
+  //
   showGoldPopup(x, y, amount) {
     const text = this.add
       .text(x, y, `+${amount}`, {
@@ -170,16 +174,49 @@ export class MainGame extends Phaser.Scene {
     this.currentWave = "BOSS";
     if (this.spawnTimer) this.spawnTimer.remove();
     const { width } = this.scale;
-    // Create the boss and store it in this.boss
-    this.boss = new Boss(this, width / 2, -100, "boss1", 500);
-    // ADD THIS COLLIDER HERE
-    this.physics.add.overlap(this.bullets, this.boss, (boss, bullet) => {
-      bullet.destroy(); // Destroy the bullet
-      boss.takeDamage(10); // Damage the boss
-      // Log to console to verify hits
-      console.log("Boss HP:", boss.hp);
+    this.boss = new Boss(this, width / 2, -100, "boss1", 2000);
+    this.setupBossCollisions();
+    // Listen for the boss death to CONTINUE the endless loop
+    this.events.once("BOSS_DEFEATED", () => {
+      this.handleBossVictory();
     });
   }
+  handleBossVictory() {
+    this.time.delayedCall(3000, () => {
+      this.currentLevel++; // Increase difficulty multiplier
+      this.gameTimer = 0; // Reset clock to 0
+      this.currentWave = 1; // Go back to Wave 1 enemies
+      // Restart the wave spawning
+      this.startNextWave(1, 1000 / this.currentLevel);
+      this.spawnTimer = this.time.addEvent({
+        delay: 1000 / this.currentLevel,
+        callback: this.spawnEnemy,
+        callbackScope: this,
+        loop: true,
+      });
+    });
+  }
+  setupBossCollisions() {
+    this.physics.add.overlap(this.bullets, this.boss, (boss, bullet) => {
+      // 1. Create the spark exactly where the bullet hit
+      const spark = this.add
+        .sprite(bullet.x, bullet.y, "flash")
+        .setScale(0.6)
+        .setTint(0xffff00)
+        .setDepth(12);
+      this.tweens.add({
+        targets: spark,
+        scale: 0.6,
+        alpha: 0,
+        duration: 100,
+        onComplete: () => spark.destroy(),
+      });
+      bullet.destroy(); // 2. Destroy the bullet
+      // 3. Tell the boss to handle its own HP and damage numbers
+      boss.takeDamage(10);
+    });
+  }
+
   takeDamage(amount) {
     if (this.isGameOver) return;
     this.player.hp -= amount;
@@ -241,30 +278,50 @@ export class MainGame extends Phaser.Scene {
 
   // NEW Step 4: Logic-based spawning
   spawnEnemy() {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.currentWave === "BOSS") return;
+
     const x = Phaser.Math.Between(50, this.scale.width - 50);
-    const isWave2 = this.currentWave === 2;
+
+    // Determine Wave Type based on Time (0-15s Wave 1, 15-30s Wave 2)
+    // Adjusting your 5s/10s logic back to your 15s/30s preference:
+    const isWave2 = this.gameTimer > 15000;
+
     const type = isWave2 ? "ZIGZAG" : "STRAIGHT";
     const texture = isWave2 ? "enemyType2" : "enemyType1";
-    const hp = isWave2 ? 40 : 20;
+
+    // Scale HP by level
+    const hp = (isWave2 ? 40 : 20) * (this.currentLevel || 1);
+
     const enemy = new Enemy(this, x, -20, texture, hp, type);
     this.enemies.add(enemy);
-    // 1. ALL ENEMIES need vertical velocity to move down
+
     if (enemy.body instanceof Phaser.Physics.Arcade.Body) {
+      // Vertical movement
       enemy.body.setVelocityY(isWave2 ? 160 : 200);
-      // 2. WAVE 2 SPECIFIC: Horizontal Ping-Pong
+
+      // WAVE 2 SPECIFIC: Restore your original Bounce/Ping-Pong Logic
       if (isWave2) {
-        enemy.setTint(0x00ff00);
         const horizontalSpeed = 150;
+        // Decide starting direction based on spawn position
         const startRight = x < this.scale.width / 2;
+
         enemy.body.setVelocityX(
           startRight ? horizontalSpeed : -horizontalSpeed,
         );
         enemy.body.setBounce(1, 0);
         enemy.body.setCollideWorldBounds(true);
+
+        // Visual indicator for Wave 2
+        enemy.setTint(0x00ff00);
+      }
+
+      // Level 2+ Superiority Tint
+      if (this.currentLevel > 1) {
+        enemy.setTint(0xff00ff); // Overrides the green if level is high
       }
     }
   }
+  // =========== Functions called inside update() =============
   handlePlayerMovement() {
     const pointer = this.input.activePointer;
     if (pointer.isDown) {
@@ -297,14 +354,16 @@ export class MainGame extends Phaser.Scene {
     });
   }
   checkGameTimeline(delta) {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.currentWave === "BOSS") return;
     this.gameTimer += delta;
-    // Wave 2 Trigger
-    if (this.currentWave === 1 && this.gameTimer > 5000) {
+
+    // Trigger Wave 2 Text/Logic at 15 seconds
+    if (this.currentWave === 1 && this.gameTimer > 15000) {
       this.startNextWave(2, 800);
     }
-    // Boss Trigger
-    if (this.currentWave === 2 && this.gameTimer > 10000) {
+
+    // Trigger Boss at 30 seconds
+    if (this.currentWave === 2 && this.gameTimer > 30000) {
       this.startBossWave();
     }
   }
