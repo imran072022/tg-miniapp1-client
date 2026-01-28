@@ -60,6 +60,17 @@ export class MainGame extends Phaser.Scene {
         this.showGoldPopup(ex, ey, 10);
       }
     });
+
+    // Collision: Helicopter Bullets vs Player
+    this.physics.add.overlap(
+      this.player,
+      this.enemyBullets,
+      (player, bullet) => {
+        if (this.isGameOver) return; // Don't trigger if already dead
+        bullet.destroy();
+        this.takeDamage(10);
+      },
+    );
   }
   setupTimers() {
     // Bullet/Shooting Timer
@@ -102,6 +113,7 @@ export class MainGame extends Phaser.Scene {
     // 2. Groups
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
+    this.enemyBullets = this.physics.add.group();
     // 3. System Initialization
     this.setupPlayer();
     this.setupTimers();
@@ -282,43 +294,71 @@ export class MainGame extends Phaser.Scene {
 
     const x = Phaser.Math.Between(50, this.scale.width - 50);
 
-    // Determine Wave Type based on Time (0-15s Wave 1, 15-30s Wave 2)
-    // Adjusting your 5s/10s logic back to your 15s/30s preference:
-    const isWave2 = this.gameTimer > 15000;
+    // Wave Selection Logic
+    const isWave3 = this.gameTimer > 30000;
+    const isWave2 = this.gameTimer > 15000 && this.gameTimer <= 30000;
 
-    const type = isWave2 ? "ZIGZAG" : "STRAIGHT";
-    const texture = isWave2 ? "enemyType2" : "enemyType1";
+    let type = "STRAIGHT";
+    let texture = "enemyType1";
+    let hp = 20;
+    let vSpeed = 200;
 
-    // Scale HP by level
-    const hp = (isWave2 ? 40 : 20) * (this.currentLevel || 1);
+    if (isWave3) {
+      type = "HELI";
+      texture = "helicopter";
+      hp = 100;
+      vSpeed = 100;
+    } else if (isWave2) {
+      type = "ZIGZAG";
+      texture = "enemyType2";
+      hp = 40;
+      vSpeed = 160;
+    }
+
+    // Apply Level Scaling
+    hp *= this.currentLevel;
 
     const enemy = new Enemy(this, x, -20, texture, hp, type);
     this.enemies.add(enemy);
 
     if (enemy.body instanceof Phaser.Physics.Arcade.Body) {
-      // Vertical movement
-      enemy.body.setVelocityY(isWave2 ? 160 : 200);
+      enemy.body.setVelocityY(vSpeed);
 
-      // WAVE 2 SPECIFIC: Restore your original Bounce/Ping-Pong Logic
-      if (isWave2) {
+      // Restore your original Wave 2 Bounce logic
+      if (type === "ZIGZAG") {
         const horizontalSpeed = 150;
-        // Decide starting direction based on spawn position
         const startRight = x < this.scale.width / 2;
-
         enemy.body.setVelocityX(
           startRight ? horizontalSpeed : -horizontalSpeed,
         );
         enemy.body.setBounce(1, 0);
         enemy.body.setCollideWorldBounds(true);
-
-        // Visual indicator for Wave 2
         enemy.setTint(0x00ff00);
       }
 
-      // Level 2+ Superiority Tint
+      // Superiority visual (Level 2+)
       if (this.currentLevel > 1) {
-        enemy.setTint(0xff00ff); // Overrides the green if level is high
+        enemy.setTint(0xff00ff);
       }
+    }
+  }
+
+  checkGameTimeline(delta) {
+    if (this.isGameOver || this.currentWave === "BOSS") return;
+    this.gameTimer += delta;
+
+    // 0-15s: Wave 1 (Auto)
+    // 15-30s: Wave 2
+    if (this.currentWave === 1 && this.gameTimer > 2000) {
+      this.startNextWave(2, 800);
+    }
+    // 30-45s: Wave 3
+    if (this.currentWave === 2 && this.gameTimer > 4000) {
+      this.startNextWave(3, 1200);
+    }
+    // 45s+: Boss
+    if (this.currentWave === 3 && this.gameTimer > 6000) {
+      this.startBossWave();
     }
   }
   // =========== Functions called inside update() =============
@@ -357,13 +397,17 @@ export class MainGame extends Phaser.Scene {
     if (this.isGameOver || this.currentWave === "BOSS") return;
     this.gameTimer += delta;
 
-    // Trigger Wave 2 Text/Logic at 15 seconds
+    // 0-15s: Wave 1 (Straight)
+    // 15-30s: Wave 2 (ZigZag)
     if (this.currentWave === 1 && this.gameTimer > 15000) {
       this.startNextWave(2, 800);
     }
-
-    // Trigger Boss at 30 seconds
+    // 30-45s: Wave 3 (Helicopter)
     if (this.currentWave === 2 && this.gameTimer > 30000) {
+      this.startNextWave(3, 1500); // Slower spawn rate for tanky Helis
+    }
+    // 45s+: Boss
+    if (this.currentWave === 3 && this.gameTimer > 45000) {
       this.startBossWave();
     }
   }
