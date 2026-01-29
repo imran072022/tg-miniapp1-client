@@ -7,10 +7,10 @@ export const getGameConfig = (containerId) => ({
   parent: containerId,
   backgroundColor: "#000000",
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE, // Fill 100% of the screen
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: "100%",
+    height: "100%",
   },
   physics: {
     default: "arcade",

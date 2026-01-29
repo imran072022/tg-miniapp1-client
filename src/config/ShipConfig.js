@@ -6,7 +6,7 @@ export const SHIP_CONFIGS = {
     bVel: -600,
     bScale: 0.6,
     shotType: "SINGLE",
-    hp: 100,
+    hp: 10000,
   },
   TITAN: {
     key: "spaceship1",
@@ -15,6 +15,6 @@ export const SHIP_CONFIGS = {
     bVel: -800,
     bScale: 0.8,
     shotType: "QUAD",
-    hp: 200,
+    hp: 1000,
   },
 };

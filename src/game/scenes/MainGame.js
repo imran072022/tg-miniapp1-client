@@ -3,7 +3,7 @@ import Enemy from "../entities/enemies/Enemy";
 import Projectile from "../abilities/Projectiles";
 import Boss from "../entities/enemies/Bosses";
 import { SHIP_CONFIGS } from "../../config/ShipConfig";
-
+import PhantomBoss from "../entities/Boss/PhantomBoss";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -20,7 +20,7 @@ export class MainGame extends Phaser.Scene {
     this.gameTimer = 0;
     this.currentWave = 1;
     this.spawnRate = 1000;
-    this.currentLevel = 1; // Tracks how many cycles we've completed
+    this.currentLevel = 3; // Tracks how many cycles we've completed
   }
   // ============ Functions called inside create() =============
   setupPlayer() {
@@ -182,20 +182,35 @@ export class MainGame extends Phaser.Scene {
       },
     });
   }
+
   startBossWave() {
     this.currentWave = "BOSS";
     if (this.spawnTimer) this.spawnTimer.remove();
     const { width } = this.scale;
-    this.boss = new Boss(
-      this,
-      width / 2,
-      -100,
-      "boss1",
-      2000,
-      this.currentLevel,
-    );
+    // --- MODULAR BOSS SELECTION ---
+    // --- MODULAR BOSS SELECTION ---
+    if (this.currentLevel === 3) {
+      this.boss = new PhantomBoss(this, width / 2, -100);
+    } else {
+      // Both Level 1 and Level 2 will now use the "boss1" image
+      const textureKey = "boss1";
+
+      this.boss = new Boss(
+        this,
+        width / 2,
+        -100,
+        textureKey,
+        2000,
+        this.currentLevel,
+      );
+
+      // To make Level 2 look different, we can tint it via code!
+      if (this.currentLevel === 2) {
+        this.boss.setTint(0xffaa00); // Give Level 2 an Orange/Gold tint
+      }
+    }
     this.setupBossCollisions();
-    // Listen for the boss death to CONTINUE the endless loop
+    // Listen for the boss death
     this.events.once("BOSS_DEFEATED", () => {
       this.handleBossVictory();
     });
@@ -215,24 +230,46 @@ export class MainGame extends Phaser.Scene {
       });
     });
   }
+  // sparkle, damage text
   setupBossCollisions() {
     this.physics.add.overlap(this.bullets, this.boss, (boss, bullet) => {
-      // 1. Create the spark exactly where the bullet hit
       const spark = this.add
-        .sprite(bullet.x, bullet.y, "flash")
-        .setScale(0.6)
-        .setTint(0xffff00)
-        .setDepth(12);
+        .rectangle(bullet.x, bullet.y, 8, 8, boss.hitColor)
+        .setDepth(2000) // Ensure it's on top
+        .setRotation(Phaser.Math.Between(0, 360));
+      // 2. Make it "explode" and fade
       this.tweens.add({
         targets: spark,
-        scale: 0.6,
+        scale: 2,
         alpha: 0,
-        duration: 100,
+        angle: 180,
+        duration: 150,
         onComplete: () => spark.destroy(),
       });
-      bullet.destroy(); // 2. Destroy the bullet
-      // 3. Tell the boss to handle its own HP and damage numbers
-      boss.takeDamage(10);
+      // 2. Create Floating Damage Text
+      const damageAmount = 10;
+      const damageText = this.add
+        .text(bullet.x, bullet.y, `-${damageAmount}`, {
+          fontSize: "20px",
+          fill: "#ffffff",
+          fontStyle: "bold",
+          stroke: "#000000",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(200);
+      // Animate the damage text (float up and drift)
+      this.tweens.add({
+        targets: damageText,
+        y: bullet.y - 60,
+        x: bullet.x + Phaser.Math.Between(-25, 25),
+        alpha: 0,
+        duration: 800,
+        onComplete: () => damageText.destroy(),
+      });
+      // 3. Cleanup and Logic
+      bullet.destroy();
+      boss.takeDamage(damageAmount);
     });
   }
   triggerRedAlert() {
@@ -466,6 +503,13 @@ export class MainGame extends Phaser.Scene {
     // 3. Special Entities
     if (this.boss && this.boss.active) {
       this.boss.update();
+    }
+    // TEMPORARY TESTING KEY
+    if (this.input.keyboard.checkDown(this.input.keyboard.addKey("K"), 500)) {
+      if (this.boss) {
+        console.log("Cheater! Boss dying...");
+        this.boss.takeDamage(9999);
+      }
     }
   }
 }

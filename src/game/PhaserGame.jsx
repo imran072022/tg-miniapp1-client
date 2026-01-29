@@ -11,19 +11,13 @@ const PhaserGame = () => {
     if (!gameRef.current) {
       const config = getGameConfig("phaser-container");
       gameRef.current = new Phaser.Game(config);
-      // --- NEW: LISTENERS TO BRIDGE PHASER AND REACT ---
-      // Listen for the Game Over event from MainGame.js
       gameRef.current.events.on("GAME_OVER", (finalGold) => {
         console.log("Match Ended. Gold Collected:", finalGold);
         handleGameOver(finalGold);
-        // handleGameOver should set showResult(true) and update the local state
       });
-      // Listen for HP updates if you want to show a health bar in React TopNav
       gameRef.current.events.on("UPDATE_HP", (currentHp) => {
         console.log("Player HP Updated:", currentHp);
       });
-
-      // Existing ready logic
       gameRef.current.events.once("ready", () => {
         gameRef.current.scene.start("Preloader", {
           equippedCard,
@@ -31,10 +25,8 @@ const PhaserGame = () => {
         });
       });
     }
-
     return () => {
       if (gameRef.current) {
-        // Clean up listeners before destroying
         gameRef.current.events.off("GAME_OVER");
         gameRef.current.events.off("UPDATE_HP");
         gameRef.current.destroy(true);
