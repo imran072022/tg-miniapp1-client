@@ -3,16 +3,13 @@ import Phaser from "phaser";
 export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture, hp, type = "STRAIGHT") {
     super(scene, x, y, texture);
-
     scene.add.existing(this);
     scene.physics.add.existing(this);
-
     if (this.body instanceof Phaser.Physics.Arcade.Body) {
       this.body.allowGravity = false;
       this.setCollideWorldBounds(true);
       this.setBounce(1, 0);
     }
-
     this.setDepth(5);
     this.hp = hp || 20;
     this.maxHp = this.hp;
@@ -20,14 +17,12 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.enemyType = type;
     this.startX = x;
     this.randomOffset = Math.random() * 1000;
-
     // --- Helicopter Specific Setup ---
     if (this.enemyType === "HELI") {
       this.fan = scene.add.sprite(this.x, this.y, "heliFan");
       this.fan.setDepth(6);
       this.stopY = Phaser.Math.Between(100, 250);
       this.isStationary = false;
-
       // Helicopter Firing Timer
       this.fireTimer = scene.time.addEvent({
         delay: 2000,
@@ -36,7 +31,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
         loop: true,
       });
     }
-
     this.hpBar = scene.add.graphics();
     this.drawHealthBar();
   }
@@ -56,7 +50,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   shootAtPlayer() {
     if (this.isDead || !this.active || !this.isStationary) return;
-
     // 1. Create muzzle flash spark
     const spark = this.scene.add.sprite(this.x, this.y + 25, "flash");
     spark.setScale(0.4).setAlpha(0.8).setDepth(7);
@@ -67,26 +60,22 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       duration: 100,
       onComplete: () => spark.destroy(),
     });
-
     // 2. Create the bullet
     const bullet = this.scene.physics.add.sprite(
       this.x,
       this.y + 20,
       "energy_bullet",
     );
-
     // 3. Add to the group in MainGame (so collisions work)
     if (this.scene.enemyBullets) {
       this.scene.enemyBullets.add(bullet);
     }
-
     // 4. Set Physics Properties
     bullet.setScale(0.5).setTint(0xffaa00).setDepth(4);
     if (bullet.body) {
       bullet.body.allowGravity = false;
       bullet.body.setVelocityY(150); // The slow speed you wanted
     }
-
     // 5. Cleanup (Destroy if it leaves screen)
     // Using a simple check in the scene's update is better,
     // but this delayed call is a safe backup.
@@ -132,11 +121,19 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(500, () => explorer.destroy());
     this.destroy();
   }
-
+  retreat() {
+    if (this.isDead || !this.active) return;
+    // Stop any firing timers
+    if (this.fireTimer) this.fireTimer.remove();
+    // Fly up quickly
+    if (this.body) {
+      this.body.setVelocityY(-400);
+      this.body.setVelocityX(0); // Stop zigzagging
+    }
+  }
   update(time) {
     if (this.isDead || !this.active) return;
     this.drawHealthBar();
-
     // Helicopter Behavior
     if (this.enemyType === "HELI") {
       if (this.fan) {
@@ -149,12 +146,11 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
         if (this.body) this.body.setVelocityY(0);
       }
     }
-
     // Cleanup off-screen
-    if (this.y > this.scene.scale.height + 50) {
+    // UPDATED CLEANUP: Remove if it leaves the bottom OR the top (for retreat)
+    if (this.y > this.scene.scale.height + 50 || this.y < -150) {
       if (this.fan) this.fan.destroy();
-      if (this.fireTimer) this.fireTimer.remove();
-      this.hpBar.destroy();
+      if (this.hpBar) this.hpBar.destroy();
       this.destroy();
     }
   }

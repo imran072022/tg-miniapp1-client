@@ -186,7 +186,14 @@ export class MainGame extends Phaser.Scene {
     this.currentWave = "BOSS";
     if (this.spawnTimer) this.spawnTimer.remove();
     const { width } = this.scale;
-    this.boss = new Boss(this, width / 2, -100, "boss1", 2000);
+    this.boss = new Boss(
+      this,
+      width / 2,
+      -100,
+      "boss1",
+      2000,
+      this.currentLevel,
+    );
     this.setupBossCollisions();
     // Listen for the boss death to CONTINUE the endless loop
     this.events.once("BOSS_DEFEATED", () => {
@@ -228,7 +235,25 @@ export class MainGame extends Phaser.Scene {
       boss.takeDamage(10);
     });
   }
-
+  triggerRedAlert() {
+    // 1. Create a red rectangle covering the whole screen
+    const alertOverlay = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0xff0000)
+      .setOrigin(0, 0)
+      .setDepth(150)
+      .setAlpha(0);
+    // 2. Create the "On-Off" Strobe Effect
+    this.tweens.add({
+      targets: alertOverlay,
+      alpha: 0.3, // Subtle red pulse
+      duration: 300,
+      yoyo: true, // Goes back to 0
+      repeat: 5, // Blinks 6 times total
+      onComplete: () => alertOverlay.destroy(),
+    });
+    // 3. Camera Shake for impact
+    this.cameras.main.shake(1000, 0.01);
+  }
   takeDamage(amount) {
     if (this.isGameOver) return;
     this.player.hp -= amount;
@@ -342,25 +367,6 @@ export class MainGame extends Phaser.Scene {
       }
     }
   }
-
-  checkGameTimeline(delta) {
-    if (this.isGameOver || this.currentWave === "BOSS") return;
-    this.gameTimer += delta;
-
-    // 0-15s: Wave 1 (Auto)
-    // 15-30s: Wave 2
-    if (this.currentWave === 1 && this.gameTimer > 2000) {
-      this.startNextWave(2, 800);
-    }
-    // 30-45s: Wave 3
-    if (this.currentWave === 2 && this.gameTimer > 4000) {
-      this.startNextWave(3, 1200);
-    }
-    // 45s+: Boss
-    if (this.currentWave === 3 && this.gameTimer > 6000) {
-      this.startBossWave();
-    }
-  }
   // =========== Functions called inside update() =============
   handlePlayerMovement() {
     const pointer = this.input.activePointer;
@@ -396,19 +402,56 @@ export class MainGame extends Phaser.Scene {
   checkGameTimeline(delta) {
     if (this.isGameOver || this.currentWave === "BOSS") return;
     this.gameTimer += delta;
-
-    // 0-15s: Wave 1 (Straight)
-    // 15-30s: Wave 2 (ZigZag)
-    if (this.currentWave === 1 && this.gameTimer > 15000) {
-      this.startNextWave(2, 800);
+    // --- WAVE 1 to 2 GAP (at 15s) ---
+    if (this.currentWave === 1 && this.gameTimer > 0) {
+      if (this.spawnTimer) this.spawnTimer.paused = true; // Stop spawning
+      this.startNextWave(2, 800); // This shows text and resumes after 2s
     }
-    // 30-45s: Wave 3 (Helicopter)
-    if (this.currentWave === 2 && this.gameTimer > 30000) {
-      this.startNextWave(3, 1500); // Slower spawn rate for tanky Helis
+    // --- WAVE 2 to 3 GAP (at 30s) ---
+    if (this.currentWave === 2 && this.gameTimer > 0) {
+      if (this.spawnTimer) this.spawnTimer.paused = true;
+      this.startNextWave(3, 1200);
     }
-    // 45s+: Boss
-    if (this.currentWave === 3 && this.gameTimer > 45000) {
-      this.startBossWave();
+    // --- BOSS PREP (at 45s) ---
+    if (this.currentWave === 3 && this.gameTimer > 0) {
+      this.currentWave = "BOSS_PREP"; // Temporary state for the gap
+      // 1. Stop Spawning
+      if (this.spawnTimer) this.spawnTimer.remove();
+      // 2. Tell all current enemies to retreat
+      this.enemies.children.each((enemy) => {
+        enemy.retreat();
+      });
+      // 3. TRIGGER RED ALERT
+      this.triggerRedAlert();
+      // 4. Boss Warning Text
+      const warningText = this.add
+        .text(
+          this.scale.width / 2,
+          this.scale.height / 2,
+          "WARNING: BOSS DETECTED",
+          {
+            fontSize: "32px",
+            fill: "#ff0000",
+            fontWeight: "bold",
+            stroke: "#000000",
+            strokeThickness: 6,
+          },
+        )
+        .setOrigin(0.5)
+        .setDepth(200);
+      // Blink the text
+      this.tweens.add({
+        targets: warningText,
+        alpha: 0,
+        duration: 500,
+        yoyo: true,
+        repeat: 3,
+        onComplete: () => warningText.destroy(),
+      });
+      // 3. Wait 4 seconds for cleanup, then bring the Boss
+      this.time.delayedCall(4000, () => {
+        this.startBossWave();
+      });
     }
   }
   update(time, delta) {
