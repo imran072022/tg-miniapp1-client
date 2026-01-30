@@ -10,7 +10,12 @@ export default class EnergyCoreBoss extends BaseBoss {
     this.setScale(1.4);
     this.hpBarOffset = -120; // boss4 is taller (237px), so move bar up
     this.hitColor = 0x00ffff; // Cyan sparkles for energy hits
-
+    // Add this in your constructor
+    // Adjust these numbers (60, 40) so they align with your "X" pipes
+    this.pipeTopLeft = { x: -60, y: -40 };
+    this.pipeTopRight = { x: 60, y: -40 };
+    this.pipeBotLeft = { x: -60, y: 40 };
+    this.pipeBotRight = { x: 60, y: 40 };
     // 1. Entrance Tween (Matches your Level 3 style)
     scene.tweens.add({
       targets: this,
@@ -139,7 +144,7 @@ export default class EnergyCoreBoss extends BaseBoss {
   startInfernoCycle() {
     this.coreGlow.setTint(0xffffff);
     this.isCharging = true;
-
+    this.deployTurrets(); // deploy turrets
     this.scene.tweens.addCounter({
       from: 0,
       to: 100,
@@ -294,6 +299,245 @@ export default class EnergyCoreBoss extends BaseBoss {
         this.lightningGraphics.strokePath();
       }
     });
+  }
+  //============= Turrets ==================
+  deployTurrets() {
+    this.createExhaust(this.pipeTopLeft);
+    this.createExhaust(this.pipeTopRight);
+
+    const turretL = this.scene.add.sprite(
+      this.x + this.pipeBotLeft.x,
+      this.y + this.pipeBotLeft.y,
+      "turret",
+    );
+    const turretR = this.scene.add.sprite(
+      this.x + this.pipeBotRight.x,
+      this.y + this.pipeBotRight.y,
+      "turret",
+    );
+
+    // Start them behind the boss
+    [turretL, turretR].forEach((t) => t.setDepth(this.depth - 1).setScale(1.5));
+
+    // Slow U-Shape Entry (2 seconds instead of 1)
+    this.scene.tweens.add({
+      targets: turretL,
+      x: this.x - 140,
+      y: this.y + 100, // Moves down first
+      duration: 2000,
+      ease: "Cubic.easeInOut",
+      onComplete: () => this.startFreeFlight(turretL),
+    });
+
+    this.scene.tweens.add({
+      targets: turretR,
+      x: this.x + 140,
+      y: this.y + 100,
+      duration: 2000,
+      ease: "Cubic.easeInOut",
+      onComplete: () => this.startFreeFlight(turretR),
+    });
+  }
+  createExhaust(pipe) {
+    const smoke = this.scene.add.particles(
+      this.x + pipe.x,
+      this.y + pipe.y,
+      "fire_particle",
+      {
+        speed: { min: 20, max: 80 },
+        angle: { min: 240, max: 300 }, // Shooting UP
+        scale: { start: 0.8, end: 2 }, // Smoke gets BIGGER as it dissipates
+        alpha: { start: 0.6, end: 0 },
+        lifespan: { min: 1000, max: 3000 }, // Stays for 1-3 seconds as requested
+        blendMode: "NORMAL", // 'NORMAL' looks more like thick smoke than 'ADD'
+        tint: 0xcccccc, // Light grey smoke
+        quantity: 20,
+        stopAfter: 30,
+      },
+    );
+    smoke.setDepth(this.depth + 1);
+  }
+  startFreeFlight(turret) {
+    if (!this.active || !turret || !turret.active) return;
+
+    // 1. Initialize the firing timer ONLY ONCE per turret
+    if (!turret.fireTimer) {
+      turret.fireTimer = this.scene.time.addEvent({
+        delay: 2000, // Fires every 2 seconds
+        callback: () => this.fireTurretGuns(turret),
+        loop: true,
+      });
+
+      // Cleanup: Stop firing if the turret is destroyed
+      turret.on("destroy", () => {
+        if (turret.fireTimer) turret.fireTimer.remove();
+      });
+    }
+
+    // 2. Pick a truly random spot on the screen
+    const screenW = this.scene.scale.width;
+    const screenH = this.scene.scale.height;
+
+    // Turrets can now go anywhere (50px padding from edges)
+    const targetX = Phaser.Math.Between(50, screenW - 50);
+    const targetY = Phaser.Math.Between(50, screenH - 100);
+
+    // 3. Move slowly to the new spot
+    this.scene.tweens.add({
+      targets: turret,
+      x: targetX,
+      y: targetY,
+      duration: Phaser.Math.Between(3000, 6000), // Very slow, organic flight
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        // SAFETY CHECK: Only run if the scene and player still exist
+        if (this.scene && this.scene.player && turret.active) {
+          const angle = Phaser.Math.Angle.Between(
+            turret.x,
+            turret.y,
+            this.scene.player.x,
+            this.scene.player.y,
+          );
+          turret.setRotation(angle + Math.PI / 2);
+        }
+      },
+      onComplete: () => {
+        // When it arrives, hover for a moment, then fly again
+        if (this.active && turret.active) {
+          this.scene.time.delayedCall(Phaser.Math.Between(500, 1500), () => {
+            this.startFreeFlight(turret);
+          });
+        }
+      },
+    });
+  }
+  fireTurretGuns(turret) {
+    // Only fire if the boss, turret, and player are all alive
+    if (
+      !this.active ||
+      !turret.active ||
+      !this.scene.player ||
+      !this.scene.player.active
+    )
+      return;
+
+    const angle = Phaser.Math.Angle.Between(
+      turret.x,
+      turret.y,
+      this.scene.player.x,
+      this.scene.player.y,
+    );
+
+    // Twin-Linked Firing (2 bullets side-by-side)
+    for (let i = -1; i <= 1; i += 2) {
+      // Calculate offset so bullets come from the left/right "wing" of the turret
+      const offsetX = Math.cos(angle + Math.PI / 2) * (i * 12);
+      const offsetY = Math.sin(angle + Math.PI / 2) * (i * 12);
+
+      const bullet = this.scene.physics.add.sprite(
+        turret.x + offsetX,
+        turret.y + offsetY,
+        "fire_particle",
+      );
+
+      bullet.setTint(0xbf00ff); // Purple matching your boss theme
+      bullet.setScale(0.7);
+      bullet.setDepth(190);
+
+      // Slow, steady projectiles
+      const speed = 250;
+      this.scene.physics.velocityFromRotation(
+        angle,
+        speed,
+        bullet.body.velocity,
+      );
+
+      // Collision with player
+      this.scene.physics.add.overlap(this.scene.player, bullet, () => {
+        if (this.scene.player.takeDamage) this.scene.player.takeDamage(10);
+        bullet.destroy();
+      });
+
+      // Cleanup bullet after 4 seconds
+      this.scene.time.delayedCall(4000, () => {
+        if (bullet.active) bullet.destroy();
+      });
+    }
+
+    // Visual Muzzle Flash: Turret flashes white for a split second
+    turret.setTint(0xffffff);
+    this.scene.time.delayedCall(60, () => {
+      if (turret.active) turret.clearTint();
+    });
+  }
+
+  // Destroy everything after boss death
+  die() {
+    // 1. STOP ALL TWEENS IMMEDIATELY
+    // This stops the "Free Flight" and prevents the 'player' undefined error
+    if (this.scene) {
+      this.scene.tweens.killTweensOf([this, this.turretL, this.turretR]);
+    }
+
+    // 2. EXPLODE THE TURRETS
+    [this.turretL, this.turretR].forEach((t) => {
+      if (t && t.active) {
+        // Stop their shooting timer
+        if (t.fireTimer) t.fireTimer.remove();
+
+        // Create turret explosion (Heavy Smoke + Purple Sparks)
+        const tExplosion = this.scene.add.particles(t.x, t.y, "fire_particle", {
+          speed: { min: 50, max: 200 },
+          angle: { min: 0, max: 360 },
+          scale: { start: 1, end: 0 },
+          alpha: { start: 1, end: 0 },
+          lifespan: 800,
+          tint: [0xffffff, 0xbf00ff, 0x333333], // White flash, Purple energy, Dark smoke
+          quantity: 30,
+          stopAfter: 30,
+        });
+        tExplosion.setDepth(200);
+
+        t.destroy();
+      }
+    });
+
+    // 3. BOSS FINAL CORE OVERLOAD
+    this.isCharging = false;
+    this.coreGlow.setTint(0xffffff); // Flash core white
+    this.coreGlow.setScale(10); // Expand the glow
+
+    // 4. BIG SCREEN SHAKE
+    this.scene.cameras.main.shake(800, 0.03);
+
+    // 5. CLEANUP REMAINING VISUALS
+    if (this.swarmEmitter) this.swarmEmitter.destroy();
+
+    // Delay the final boss removal slightly so the player sees the "Core Overload"
+    this.scene.time.delayedCall(200, () => {
+      if (this.coreBall) this.coreBall.destroy();
+      if (this.coreGlow) this.coreGlow.destroy();
+
+      // Final Boss Explosion (Add your massive smoke here)
+      this.createBigBossExplosion();
+
+      this.destroy(); // Finally remove the boss sprite
+    });
+  }
+
+  createBigBossExplosion() {
+    // Massive lingering smoke clouds
+    this.scene.add
+      .particles(this.x, this.y, "fire_particle", {
+        speed: { min: 20, max: 150 },
+        scale: { start: 2, end: 4 },
+        alpha: { start: 0.7, end: 0 },
+        lifespan: 2000,
+        tint: 0x444444, // Dark heavy smoke
+        quantity: 50,
+        stopAfter: 50,
+      })
+      .setDepth(200);
   }
   update(time, delta) {
     super.update(time, delta);
