@@ -315,10 +315,56 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.y + this.pipeBotRight.y,
       "turret",
     );
+    // ENABLE PHYSICS
+    this.scene.physics.add.existing(turretL);
+    this.scene.physics.add.existing(turretR);
+    turretL.hp = 50; // Give them some health
+    turretR.hp = 50;
+    this.turretL = turretL; // Save reference to the boss class
+    this.turretR = turretR;
+    // --- Inside deployTurrets() ---
 
+    // Do this for BOTH turretL and turretR
+    this.scene.physics.add.overlap(
+      this.scene.bullets, // Use your scene's bullet group
+      turretL,
+      (t, bullet) => {
+        // If bullet or turret is already processed, exit
+        if (!bullet.active || !t.active || t.isdying) return;
+
+        // Kill bullet immediately
+        bullet.setActive(false).setVisible(false);
+        bullet.body.enable = false;
+
+        this.damageTurret(t);
+
+        // Destroy bullet at end of frame
+        this.scene.time.delayedCall(0, () => bullet.destroy());
+      },
+      null,
+      this,
+    );
+    this.scene.physics.add.overlap(
+      this.scene.bullets, // Use your scene's bullet group
+      turretR,
+      (t, bullet) => {
+        // If bullet or turret is already processed, exit
+        if (!bullet.active || !t.active || t.isdying) return;
+
+        // Kill bullet immediately
+        bullet.setActive(false).setVisible(false);
+        bullet.body.enable = false;
+
+        this.damageTurret(t);
+
+        // Destroy bullet at end of frame
+        this.scene.time.delayedCall(0, () => bullet.destroy());
+      },
+      null,
+      this,
+    );
     // Start them behind the boss
     [turretL, turretR].forEach((t) => t.setDepth(this.depth - 1).setScale(1.5));
-
     // Slow U-Shape Entry (2 seconds instead of 1)
     this.scene.tweens.add({
       targets: turretL,
@@ -470,7 +516,53 @@ export default class EnergyCoreBoss extends BaseBoss {
       if (turret.active) turret.clearTint();
     });
   }
+  damageTurret(turret) {
+    if (!turret || !turret.active || !turret.body) return;
 
+    turret.hp -= 10;
+
+    // Flash Red
+    turret.setTint(0xff0000);
+    this.scene.time.delayedCall(50, () => {
+      if (turret && turret.active) turret.clearTint();
+    });
+
+    if (turret.hp <= 0) {
+      // IMPORTANT: Disable body before calling any logic that destroys it
+      turret.body.enable = false;
+      this.explodeTurret(turret);
+    }
+  }
+  explodeTurret(turret) {
+    if (!turret || !turret.active || turret.isdying) return;
+    turret.isdying = true; // Custom flag to prevent double-logic
+
+    // 1. Disable Physics IMMEDIATELY
+    if (turret.body) {
+      turret.body.enable = false;
+      this.scene.physics.world.disable(turret);
+    }
+
+    // 2. Stop logic
+    if (turret.fireTimer) turret.fireTimer.remove();
+    this.scene.tweens.killTweensOf(turret);
+
+    // 3. Explosion
+    this.scene.add
+      .particles(turret.x, turret.y, "fire_particle", {
+        speed: { min: 20, max: 100 },
+        scale: { start: 1, end: 0 },
+        lifespan: 500,
+        quantity: 15,
+        stopAfter: 15,
+      })
+      .setDepth(200);
+
+    // 4. THE FIX: Wait until the physics step is TOTALLY finished before destroying
+    this.scene.time.delayedCall(0, () => {
+      if (turret.active) turret.destroy();
+    });
+  }
   // Destroy everything after boss death
   die() {
     // 1. STOP ALL TWEENS IMMEDIATELY
@@ -478,49 +570,42 @@ export default class EnergyCoreBoss extends BaseBoss {
     if (this.scene) {
       this.scene.tweens.killTweensOf([this, this.turretL, this.turretR]);
     }
-
     // 2. EXPLODE THE TURRETS
     [this.turretL, this.turretR].forEach((t) => {
       if (t && t.active) {
-        // Stop their shooting timer
         if (t.fireTimer) t.fireTimer.remove();
-
-        // Create turret explosion (Heavy Smoke + Purple Sparks)
+        // --- THE FIX: Disable physics body immediately ---
+        if (t.body) {
+          t.body.enable = false;
+        }
         const tExplosion = this.scene.add.particles(t.x, t.y, "fire_particle", {
           speed: { min: 50, max: 200 },
           angle: { min: 0, max: 360 },
           scale: { start: 1, end: 0 },
           alpha: { start: 1, end: 0 },
           lifespan: 800,
-          tint: [0xffffff, 0xbf00ff, 0x333333], // White flash, Purple energy, Dark smoke
+          tint: [0xffffff, 0xbf00ff, 0x333333],
           quantity: 30,
           stopAfter: 30,
         });
         tExplosion.setDepth(200);
-
         t.destroy();
       }
     });
-
     // 3. BOSS FINAL CORE OVERLOAD
     this.isCharging = false;
     this.coreGlow.setTint(0xffffff); // Flash core white
     this.coreGlow.setScale(10); // Expand the glow
-
     // 4. BIG SCREEN SHAKE
     this.scene.cameras.main.shake(800, 0.03);
-
     // 5. CLEANUP REMAINING VISUALS
     if (this.swarmEmitter) this.swarmEmitter.destroy();
-
     // Delay the final boss removal slightly so the player sees the "Core Overload"
     this.scene.time.delayedCall(200, () => {
       if (this.coreBall) this.coreBall.destroy();
       if (this.coreGlow) this.coreGlow.destroy();
-
       // Final Boss Explosion (Add your massive smoke here)
       this.createBigBossExplosion();
-
       this.destroy(); // Finally remove the boss sprite
     });
   }
