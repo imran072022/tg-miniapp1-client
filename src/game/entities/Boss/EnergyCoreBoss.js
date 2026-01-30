@@ -3,13 +3,10 @@ import BaseBoss from "./BaseBoss.js";
 
 export default class EnergyCoreBoss extends BaseBoss {
   constructor(scene, x, y) {
-    // Level 4, HP 800 (or whatever you prefer)
-    super(scene, x, -250, "boss4", 4, 800);
+    super(scene, x, -250, "boss4", 4, 5000);
     this.setTint(0x00ffff);
     this.setScale(1.4);
     this.hpBarOffset = -120; // boss4 is taller (237px), so move bar up
-    // Add this in your constructor
-    // Adjust these numbers (60, 40) so they align with your "X" pipes
     this.pipeTopLeft = { x: -60, y: -40 };
     this.pipeTopRight = { x: 60, y: -40 };
     this.pipeBotLeft = { x: -60, y: 40 };
@@ -25,18 +22,24 @@ export default class EnergyCoreBoss extends BaseBoss {
         this.startAttackPatterns();
       },
     });
-
-    // 2. Physics Body alignment (Tailored for boss4: 190x237)
     if (this.body) {
       // We want the hit zone to be the central core
-      this.body.setSize(this.width * 0.7, this.height * 0.7);
+      this.body.setSize(this.width * 0.7, this.height * 0.4);
       this.body.setOffset(this.width * 0.15, this.height * 0.15);
-      this.body.setImmovable(true);
-      this.body.setAllowGravity(false);
+      this.body.immovable = true;
+      this.body.allowGravity = false;
     }
 
     this.initEnergyFires();
     this.initCore();
+    // Value shared with enraged mode
+    this.infernoCoolDown = 8000;
+    this.turretScale = 1.5;
+    this.turretFireDelay = 2000;
+    this.turretMoveSpeedMin = 3000;
+    this.turretMoveSpeedMax = 6000;
+    this.turretDamage = 10;
+    this.turretMaxHP = 50;
   }
 
   startAttackPatterns() {
@@ -74,17 +77,14 @@ export default class EnergyCoreBoss extends BaseBoss {
     if (this.isDead || !this.scene) return;
     const player = this.scene.player;
     if (!player) return;
-
     // --- ADJUST THIS FOR CENTERING ---
     const beamXOffset = 12; // Positive moves right, negative moves left
     const startX = this.x + beamXOffset;
     const startY = this.y;
-
     // 1. Calculate the angle FROM the new offset position
     const angle = Phaser.Math.Angle.Between(startX, startY, player.x, player.y);
     const beamLength = 1500;
     const beamWidth = 80;
-
     // 2. Create the Purple Outer Beam at startX
     const beam = this.scene.add.rectangle(
       startX,
@@ -98,7 +98,6 @@ export default class EnergyCoreBoss extends BaseBoss {
     beam.setRotation(angle - Math.PI / 2);
     beam.setDepth(140);
     beam.setBlendMode("ADD");
-
     // 3. The White Inner Core at startX
     const core = this.scene.add.rectangle(
       startX,
@@ -112,10 +111,8 @@ export default class EnergyCoreBoss extends BaseBoss {
     core.setRotation(angle - Math.PI / 2);
     core.setDepth(141);
     core.setBlendMode("ADD");
-
     // 4. Impact Effects
     this.scene.cameras.main.shake(400, 0.01);
-
     // 5. Animation
     this.scene.tweens.add({
       targets: [beam, core],
@@ -128,7 +125,6 @@ export default class EnergyCoreBoss extends BaseBoss {
         core.destroy();
       },
     });
-
     // 6. Targeted Collision Logic (using startX)
     const playerAngle = Phaser.Math.Angle.Between(
       startX,
@@ -137,7 +133,6 @@ export default class EnergyCoreBoss extends BaseBoss {
       player.y,
     );
     const angleDiff = Math.abs(Phaser.Math.Angle.Wrap(angle - playerAngle));
-
     if (angleDiff < 0.1) {
       if (player.takeDamage) player.takeDamage(50);
     }
@@ -150,7 +145,7 @@ export default class EnergyCoreBoss extends BaseBoss {
     this.chargeTween = this.scene.tweens.addCounter({
       from: 0,
       to: 100,
-      duration: 8000,
+      duration: this.infernoCoolDown,
       onUpdate: (tween) => {
         // SAFETY CHECK: If boss is dead or scene is gone, stop immediately
         if (this.isDead || !this.scene || !this.scene.add) {
@@ -318,7 +313,6 @@ export default class EnergyCoreBoss extends BaseBoss {
     if (this.isDead || !this.scene) return;
     this.createExhaust(this.pipeTopLeft);
     this.createExhaust(this.pipeTopRight);
-
     const turretL = this.scene.add.sprite(
       this.x + this.pipeBotLeft.x,
       this.y + this.pipeBotLeft.y,
@@ -332,12 +326,10 @@ export default class EnergyCoreBoss extends BaseBoss {
     // ENABLE PHYSICS
     this.scene.physics.add.existing(turretL);
     this.scene.physics.add.existing(turretR);
-    turretL.hp = 50; // Give them some health
-    turretR.hp = 50;
+    turretL.hp = this.turretMaxHP;
+    turretR.hp = this.turretMaxHP;
     this.turretL = turretL; // Save reference to the boss class
     this.turretR = turretR;
-    // --- Inside deployTurrets() ---
-
     // Do this for BOTH turretL and turretR
     this.scene.physics.add.overlap(
       this.scene.bullets, // Use your scene's bullet group
@@ -372,7 +364,9 @@ export default class EnergyCoreBoss extends BaseBoss {
       this,
     );
     // Start them behind the boss
-    [turretL, turretR].forEach((t) => t.setDepth(this.depth - 1).setScale(1.5));
+    [turretL, turretR].forEach((t) =>
+      t.setDepth(this.depth - 1).setScale(this.turretScale),
+    );
     // Slow U-Shape Entry (2 seconds instead of 1)
     this.scene.tweens.add({
       targets: turretL,
@@ -414,35 +408,33 @@ export default class EnergyCoreBoss extends BaseBoss {
   }
   startFreeFlight(turret) {
     if (!this.active || !turret || !turret.active) return;
-
     // 1. Initialize the firing timer ONLY ONCE per turret
     if (!turret.fireTimer) {
       turret.fireTimer = this.scene.time.addEvent({
-        delay: 2000, // Fires every 2 seconds
+        delay: this.turretFireDelay,
         callback: () => this.fireTurretGuns(turret),
         loop: true,
       });
-
       // Cleanup: Stop firing if the turret is destroyed
       turret.on("destroy", () => {
         if (turret.fireTimer) turret.fireTimer.remove();
       });
     }
-
     // 2. Pick a truly random spot on the screen
     const screenW = this.scene.scale.width;
     const screenH = this.scene.scale.height;
-
     // Turrets can now go anywhere (50px padding from edges)
     const targetX = Phaser.Math.Between(50, screenW - 50);
     const targetY = Phaser.Math.Between(50, screenH - 100);
-
-    // 3. Move slowly to the new spot
+    // 3. Movement speed to the new spot
     this.scene.tweens.add({
       targets: turret,
       x: targetX,
       y: targetY,
-      duration: Phaser.Math.Between(3000, 6000), // Very slow, organic flight
+      duration: Phaser.Math.Between(
+        this.turretMoveSpeedMin,
+        this.turretMoveSpeedMax,
+      ),
       ease: "Sine.easeInOut",
       onUpdate: () => {
         // SAFETY CHECK: Only run if the scene and player still exist
@@ -495,11 +487,10 @@ export default class EnergyCoreBoss extends BaseBoss {
         speed,
         bullet.body.velocity,
       );
-      // --- FIX FOR LINE 514: Collision with player ---
       this.scene.physics.add.overlap(this.scene.player, bullet, () => {
         // Check if scene exists BEFORE calling takeDamage
         if (this.scene && this.scene.player && this.scene.player.takeDamage) {
-          this.scene.player.takeDamage(10);
+          this.scene.player.takeDamage(this.turretDamage);
         }
         bullet.destroy();
       });
@@ -555,7 +546,6 @@ export default class EnergyCoreBoss extends BaseBoss {
         stopAfter: 15,
       })
       .setDepth(200);
-
     // 4. THE FIX: Wait until the physics step is TOTALLY finished before destroying
     this.scene.time.delayedCall(0, () => {
       if (turret.active) turret.destroy();
@@ -600,7 +590,6 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.hpBar.destroy();
       this.hpBar = null;
     }
-
     // 3. The Death Animation with Safety Checks
     this.scene.tweens.add({
       targets: this,
@@ -638,7 +627,6 @@ export default class EnergyCoreBoss extends BaseBoss {
         0x666666,
         0.5,
       );
-      smoke.setDepth(this.depth + 10);
       this.scene.tweens.add({
         targets: smoke,
         y: "-=100",
@@ -677,7 +665,6 @@ export default class EnergyCoreBoss extends BaseBoss {
         },
       });
     }
-
     // 2. The "Big Smoke" (Modified to be more "Nebula" like)
     this.scene.add
       .particles(this.x, this.y, "fire_particle", {
@@ -691,32 +678,22 @@ export default class EnergyCoreBoss extends BaseBoss {
         blendMode: "NORMAL",
       })
       .setDepth(200);
-
     // 3. Screen Effects
     this.scene.cameras.main.flash(1000, 255, 255, 255);
     this.scene.cameras.main.shake(500, 0.05);
-
     this.destroy();
   }
   update(time, delta) {
     if (this.isDead) return;
+    // Call the BaseBoss update for HP bar positioning
     super.update(time, delta);
-
+    // Keep the core visual centered on the boss
     if (this.coreBall && this.coreGlow) {
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (this.isShaking) {
-        offsetX = Math.random() * 6 - 3;
-        offsetY = Math.random() * 6 - 3;
-      }
-
-      this.coreBall.setPosition(this.x + offsetX, this.y - 10 + offsetY);
-      this.coreGlow.setPosition(this.x + offsetX, this.y - 10 + offsetY);
+      this.coreBall.setPosition(this.x, this.y - 10);
+      this.coreGlow.setPosition(this.x, this.y - 10);
     }
-
-    // DRAW LIGHTNING ONLY WHEN CHARGING
-    if (this.isCharging) {
+    // DRAW LIGHTNING ONLY WHEN CHARGING OR ENRAGED
+    if (this.isCharging || this.isEnraged) {
       this.drawLightning();
     } else if (this.lightningGraphics) {
       this.lightningGraphics.clear();
@@ -724,14 +701,54 @@ export default class EnergyCoreBoss extends BaseBoss {
   }
   // stop jumping colors when getting hit
   takeDamage(amount) {
-    if (this.isDead) return; // Important: Stop processing damage if already dying
-
+    if (this.isDead) return;
     this.hp -= amount;
     if (this.updateHPBar) this.updateHPBar();
-    if (this.checkRage) this.checkRage();
-
+    if (this.hp <= this.maxHp * 0.4 && !this.isEnraged) {
+      this.triggerEnragedMode();
+    }
     if (this.hp <= 0) {
       this.die();
     }
+  }
+  // ========== Enraged boss ==========
+  triggerEnragedMode() {
+    if (this.isEnraged) return; // Safety lock
+    this.isEnraged = true;
+    // 1. Inferno Cycle (Set to 6000 for 6 seconds)
+    this.infernoCoolDown = 5000;
+    this.setTint(0xbf00ff);
+    // Update Global Turret Stats for FUTURE spawns
+    this.turretScale = 2.25;
+    this.turretFireDelay = 1333;
+    this.turretMoveSpeedMin = 1500;
+    this.turretMoveSpeedMax = 3000;
+    this.turretDamage = 20;
+    this.turretMaxHP = 75;
+    // Apply to EXISTING turrets
+    const turrets = [this.turretL, this.turretR];
+    turrets.forEach((t) => {
+      if (!t || !t.active) return;
+      t.setScale(this.turretScale);
+      t.hp = this.turretMaxHP; // This now only runs ONCE when mode starts
+      this.applyFireflyEffect(t);
+      if (t.fireTimer) {
+        t.fireTimer.reset({
+          delay: this.turretFireDelay,
+          callback: () => this.fireTurretGuns(t),
+          loop: true,
+        });
+      }
+    });
+    this.scene.cameras.main.shake(300, 0.01);
+  }
+  applyFireflyEffect(turret) {
+    this.scene.tweens.add({
+      targets: turret,
+      tint: { from: 0xffffff, to: 0xbf00ff }, // Rapid color flashing
+      duration: 200,
+      yoyo: true,
+      repeat: -1,
+    });
   }
 }
