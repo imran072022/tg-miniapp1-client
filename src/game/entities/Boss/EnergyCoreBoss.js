@@ -5,11 +5,9 @@ export default class EnergyCoreBoss extends BaseBoss {
   constructor(scene, x, y) {
     // Level 4, HP 800 (or whatever you prefer)
     super(scene, x, -250, "boss4", 4, 800);
-
-    this.setTint(0xffffff); // Core is white/energy themed
+    this.setTint(0x00ffff);
     this.setScale(1.4);
     this.hpBarOffset = -120; // boss4 is taller (237px), so move bar up
-    this.hitColor = 0x00ffff; // Cyan sparkles for energy hits
     // Add this in your constructor
     // Adjust these numbers (60, 40) so they align with your "X" pipes
     this.pipeTopLeft = { x: -60, y: -40 };
@@ -46,6 +44,7 @@ export default class EnergyCoreBoss extends BaseBoss {
     this.startInfernoCycle(); // <--- Add this to start the 8s timer!
   }
   initCore() {
+    if (this.isDead || !this.scene) return;
     // Create the sprites at the boss's current position
     this.coreBall = this.scene.add.sprite(this.x, this.y, "fire_particle");
     this.coreBall
@@ -72,34 +71,38 @@ export default class EnergyCoreBoss extends BaseBoss {
     });
   }
   fireInfernoBeam() {
+    if (this.isDead || !this.scene) return;
     const player = this.scene.player;
     if (!player) return;
 
-    // 1. Calculate the angle to the player
-    // This "locks" the direction at the moment of firing
-    const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
+    // --- ADJUST THIS FOR CENTERING ---
+    const beamXOffset = 12; // Positive moves right, negative moves left
+    const startX = this.x + beamXOffset;
+    const startY = this.y;
+
+    // 1. Calculate the angle FROM the new offset position
+    const angle = Phaser.Math.Angle.Between(startX, startY, player.x, player.y);
     const beamLength = 1500;
     const beamWidth = 80;
 
-    // 2. Create the Purple Outer Beam (using a Rectangle)
-    // We rotate it to face the player
+    // 2. Create the Purple Outer Beam at startX
     const beam = this.scene.add.rectangle(
-      this.x,
-      this.y,
+      startX,
+      startY,
       beamWidth,
       beamLength,
       0xbf00ff,
       0.8,
     );
-    beam.setOrigin(0.5, 0); // Origin at the top center so it grows FROM the boss
-    beam.setRotation(angle - Math.PI / 2); // Adjust rotation because rectangles are vertical by default
+    beam.setOrigin(0.5, 0);
+    beam.setRotation(angle - Math.PI / 2);
     beam.setDepth(140);
     beam.setBlendMode("ADD");
 
-    // 3. The White Inner Core
+    // 3. The White Inner Core at startX
     const core = this.scene.add.rectangle(
-      this.x,
-      this.y,
+      startX,
+      startY,
       beamWidth * 0.4,
       beamLength,
       0xffffff,
@@ -113,7 +116,7 @@ export default class EnergyCoreBoss extends BaseBoss {
     // 4. Impact Effects
     this.scene.cameras.main.shake(400, 0.01);
 
-    // 5. Animation (The beam "punches" out and fades)
+    // 5. Animation
     this.scene.tweens.add({
       targets: [beam, core],
       width: 0,
@@ -126,30 +129,34 @@ export default class EnergyCoreBoss extends BaseBoss {
       },
     });
 
-    // 6. Targeted Collision Logic
-    // We check if the player's current position is within the beam's "slice" of the circle
+    // 6. Targeted Collision Logic (using startX)
     const playerAngle = Phaser.Math.Angle.Between(
-      this.x,
-      this.y,
+      startX,
+      startY,
       player.x,
       player.y,
     );
     const angleDiff = Math.abs(Phaser.Math.Angle.Wrap(angle - playerAngle));
 
     if (angleDiff < 0.1) {
-      // 0.1 radians is roughly the width of the beam
       if (player.takeDamage) player.takeDamage(50);
     }
   }
   startInfernoCycle() {
+    if (this.isDead || !this.scene) return;
     this.coreGlow.setTint(0xffffff);
     this.isCharging = true;
     this.deployTurrets(); // deploy turrets
-    this.scene.tweens.addCounter({
+    this.chargeTween = this.scene.tweens.addCounter({
       from: 0,
       to: 100,
       duration: 8000,
       onUpdate: (tween) => {
+        // SAFETY CHECK: If boss is dead or scene is gone, stop immediately
+        if (this.isDead || !this.scene || !this.scene.add) {
+          tween.stop();
+          return;
+        }
         const v = tween.getValue();
 
         // Color transition
@@ -224,7 +231,7 @@ export default class EnergyCoreBoss extends BaseBoss {
       ctx.fillRect(0, 0, 32, 32);
       this.scene.textures.addCanvas("fire_particle", canvas);
     }
-    this.engineFires = [];
+    this.engineEmitters = [];
 
     const engines = [
       { x: 0, y: -62, angle: 270, life: 700, col: 0xdc143c, scale: 1.0 },
@@ -235,7 +242,7 @@ export default class EnergyCoreBoss extends BaseBoss {
 
     engines.forEach((config) => {
       // Outer Glow - Increased start scale by 20% (0.8 -> 1.0)
-      this.scene.add.particles(0, 0, "fire_particle", {
+      const emitter1 = this.scene.add.particles(0, 0, "fire_particle", {
         speed: { min: 100, max: 200 },
         angle: config.angle,
         scale: { start: config.scale, end: 0.2 },
@@ -246,9 +253,10 @@ export default class EnergyCoreBoss extends BaseBoss {
         follow: this,
         followOffset: { x: config.x, y: config.y },
       });
+      this.engineEmitters.push(emitter1);
 
       // 2. Create the White-Hot Internal Core
-      this.scene.add.particles(0, 0, "fire_particle", {
+      const emitter2 = this.scene.add.particles(0, 0, "fire_particle", {
         speed: { min: 250, max: 350 },
         angle: config.angle,
         scale: { start: config.scale * 0.5, end: 0 },
@@ -258,9 +266,14 @@ export default class EnergyCoreBoss extends BaseBoss {
         follow: this,
         followOffset: { x: config.x, y: config.y },
       });
+      this.engineEmitters.push(emitter2);
     });
   }
   drawLightning() {
+    if (this.isDead || !this.scene) {
+      if (this.lightningGraphics) this.lightningGraphics.clear();
+      return;
+    }
     if (!this.lightningGraphics) {
       this.lightningGraphics = this.scene.add.graphics();
       this.lightningGraphics.setDepth(160);
@@ -302,6 +315,7 @@ export default class EnergyCoreBoss extends BaseBoss {
   }
   //============= Turrets ==================
   deployTurrets() {
+    if (this.isDead || !this.scene) return;
     this.createExhaust(this.pipeTopLeft);
     this.createExhaust(this.pipeTopRight);
 
@@ -329,17 +343,12 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.scene.bullets, // Use your scene's bullet group
       turretL,
       (t, bullet) => {
-        // If bullet or turret is already processed, exit
-        if (!bullet.active || !t.active || t.isdying) return;
-
-        // Kill bullet immediately
+        if (this.isDead || !this.scene) return;
+        if (!bullet.active || !t.active || t.isDying) return;
         bullet.setActive(false).setVisible(false);
         bullet.body.enable = false;
-
         this.damageTurret(t);
-
-        // Destroy bullet at end of frame
-        this.scene.time.delayedCall(0, () => bullet.destroy());
+        bullet.destroy();
       },
       null,
       this,
@@ -348,17 +357,16 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.scene.bullets, // Use your scene's bullet group
       turretR,
       (t, bullet) => {
-        // If bullet or turret is already processed, exit
-        if (!bullet.active || !t.active || t.isdying) return;
-
-        // Kill bullet immediately
+        // 1. SAFETY: If the boss is already dead, ignore this collision
+        if (this.isDead || !this.scene) return;
+        if (!bullet.active || !t.active || t.isDying) return;
+        // 2. Hide it and stop physics
         bullet.setActive(false).setVisible(false);
         bullet.body.enable = false;
-
+        // 3. Process the damage
         this.damageTurret(t);
-
-        // Destroy bullet at end of frame
-        this.scene.time.delayedCall(0, () => bullet.destroy());
+        // 4. DESTROY IMMEDIATELY (No delayedCall)
+        bullet.destroy();
       },
       null,
       this,
@@ -385,6 +393,7 @@ export default class EnergyCoreBoss extends BaseBoss {
     });
   }
   createExhaust(pipe) {
+    if (this.isDead || !this.scene) return;
     const smoke = this.scene.add.particles(
       this.x + pipe.x,
       this.y + pipe.y,
@@ -458,95 +467,84 @@ export default class EnergyCoreBoss extends BaseBoss {
     });
   }
   fireTurretGuns(turret) {
-    // Only fire if the boss, turret, and player are all alive
-    if (
-      !this.active ||
-      !turret.active ||
-      !this.scene.player ||
-      !this.scene.player.active
-    )
+    // 1. Initial Safety Gate
+    if (!this.scene || !this.scene.player || !this.active || !turret.active)
       return;
-
     const angle = Phaser.Math.Angle.Between(
       turret.x,
       turret.y,
       this.scene.player.x,
       this.scene.player.y,
     );
-
-    // Twin-Linked Firing (2 bullets side-by-side)
     for (let i = -1; i <= 1; i += 2) {
-      // Calculate offset so bullets come from the left/right "wing" of the turret
       const offsetX = Math.cos(angle + Math.PI / 2) * (i * 12);
       const offsetY = Math.sin(angle + Math.PI / 2) * (i * 12);
-
-      const bullet = this.scene.physics.add.sprite(
+      const bullet = this.scene.add.rectangle(
         turret.x + offsetX,
         turret.y + offsetY,
-        "fire_particle",
+        4,
+        20,
+        0xffffff,
       );
-
-      bullet.setTint(0xbf00ff); // Purple matching your boss theme
-      bullet.setScale(0.7);
-      bullet.setDepth(190);
-
-      // Slow, steady projectiles
-      const speed = 250;
+      this.scene.physics.add.existing(bullet);
+      bullet.setRotation(angle + Math.PI / 2);
+      bullet.setStrokeStyle(2, 0xbf00ff);
+      const speed = 350;
       this.scene.physics.velocityFromRotation(
         angle,
         speed,
         bullet.body.velocity,
       );
-
-      // Collision with player
+      // --- FIX FOR LINE 514: Collision with player ---
       this.scene.physics.add.overlap(this.scene.player, bullet, () => {
-        if (this.scene.player.takeDamage) this.scene.player.takeDamage(10);
+        // Check if scene exists BEFORE calling takeDamage
+        if (this.scene && this.scene.player && this.scene.player.takeDamage) {
+          this.scene.player.takeDamage(10);
+        }
         bullet.destroy();
       });
-
-      // Cleanup bullet after 4 seconds
+      // --- FIX: Cleanup bullet after 4 seconds ---
       this.scene.time.delayedCall(4000, () => {
-        if (bullet.active) bullet.destroy();
+        if (this.scene && bullet.active) {
+          bullet.destroy();
+        }
       });
     }
-
-    // Visual Muzzle Flash: Turret flashes white for a split second
+    // --- FIX: Visual Muzzle Flash ---
     turret.setTint(0xffffff);
     this.scene.time.delayedCall(60, () => {
-      if (turret.active) turret.clearTint();
+      // Check if scene exists before clearing tint
+      if (this.scene && turret.active) {
+        turret.clearTint();
+      }
     });
   }
   damageTurret(turret) {
+    if (this.isDead || !this.scene) return;
     if (!turret || !turret.active || !turret.body) return;
-
     turret.hp -= 10;
-
     // Flash Red
     turret.setTint(0xff0000);
+    // Safety check inside the delayed call too
     this.scene.time.delayedCall(50, () => {
-      if (turret && turret.active) turret.clearTint();
+      if (this.scene && turret && turret.active) turret.clearTint();
     });
-
     if (turret.hp <= 0) {
-      // IMPORTANT: Disable body before calling any logic that destroys it
       turret.body.enable = false;
       this.explodeTurret(turret);
     }
   }
   explodeTurret(turret) {
-    if (!turret || !turret.active || turret.isdying) return;
-    turret.isdying = true; // Custom flag to prevent double-logic
-
+    if (!turret || !turret.active || turret.isDying) return;
+    turret.isDying = true; // Custom flag to prevent double-logic
     // 1. Disable Physics IMMEDIATELY
     if (turret.body) {
       turret.body.enable = false;
       this.scene.physics.world.disable(turret);
     }
-
     // 2. Stop logic
     if (turret.fireTimer) turret.fireTimer.remove();
     this.scene.tweens.killTweensOf(turret);
-
     // 3. Explosion
     this.scene.add
       .particles(turret.x, turret.y, "fire_particle", {
@@ -565,66 +563,143 @@ export default class EnergyCoreBoss extends BaseBoss {
   }
   // Destroy everything after boss death
   die() {
-    // 1. STOP ALL TWEENS IMMEDIATELY
-    // This stops the "Free Flight" and prevents the 'player' undefined error
-    if (this.scene) {
-      this.scene.tweens.killTweensOf([this, this.turretL, this.turretR]);
+    if (this.isDead) return;
+    this.isDead = true;
+    if (this.lightningGraphics) {
+      this.lightningGraphics.destroy();
     }
-    // 2. EXPLODE THE TURRETS
-    [this.turretL, this.turretR].forEach((t) => {
+    if (this.engineEmitters) {
+      this.engineEmitters.forEach((emitter) => {
+        emitter.stop();
+      });
+    }
+    if (this.chargeTween) {
+      this.chargeTween.stop();
+      this.chargeTween = null;
+    }
+    if (this.swarmEmitter) {
+      this.swarmEmitter.destroy();
+      this.swarmEmitter = null;
+    }
+    if (this.infernoTimer) this.infernoTimer.destroy();
+    if (this.turretTimer) this.turretTimer.destroy();
+    if (this.exhaustTimer) this.exhaustTimer.destroy();
+    // remove turrets by exploding
+    const activeTurrets = [this.turretL, this.turretR];
+    activeTurrets.forEach((t) => {
       if (t && t.active) {
-        if (t.fireTimer) t.fireTimer.remove();
-        // --- THE FIX: Disable physics body immediately ---
-        if (t.body) {
-          t.body.enable = false;
-        }
-        const tExplosion = this.scene.add.particles(t.x, t.y, "fire_particle", {
-          speed: { min: 50, max: 200 },
-          angle: { min: 0, max: 360 },
-          scale: { start: 1, end: 0 },
-          alpha: { start: 1, end: 0 },
-          lifespan: 800,
-          tint: [0xffffff, 0xbf00ff, 0x333333],
-          quantity: 30,
-          stopAfter: 30,
-        });
-        tExplosion.setDepth(200);
-        t.destroy();
+        this.explodeTurret(t);
       }
     });
-    // 3. BOSS FINAL CORE OVERLOAD
-    this.isCharging = false;
-    this.coreGlow.setTint(0xffffff); // Flash core white
-    this.coreGlow.setScale(10); // Expand the glow
-    // 4. BIG SCREEN SHAKE
-    this.scene.cameras.main.shake(800, 0.03);
-    // 5. CLEANUP REMAINING VISUALS
-    if (this.swarmEmitter) this.swarmEmitter.destroy();
-    // Delay the final boss removal slightly so the player sees the "Core Overload"
-    this.scene.time.delayedCall(200, () => {
-      if (this.coreBall) this.coreBall.destroy();
-      if (this.coreGlow) this.coreGlow.destroy();
-      // Final Boss Explosion (Add your massive smoke here)
-      this.createBigBossExplosion();
-      this.destroy(); // Finally remove the boss sprite
+    // 2. Immediate Visual Shutdown
+    if (this.body) this.body.enable = false;
+    this.setTint(0x333333);
+    if (this.coreBall) this.coreBall.setVisible(false);
+    if (this.coreGlow) this.coreGlow.setVisible(false);
+    if (this.hpBar) {
+      this.hpBar.destroy();
+      this.hpBar = null;
+    }
+
+    // 3. The Death Animation with Safety Checks
+    this.scene.tweens.add({
+      targets: this,
+      angle: { from: -3, to: 3 },
+      x: this.x + 2,
+      yoyo: true,
+      duration: 80,
+      repeat: 20,
+      onUpdate: () => {
+        // THE FIX: Check if scene and add still exist
+        if (this.scene && this.scene.add) {
+          this.releaseDeathSmoke();
+        }
+      },
+      onComplete: () => {
+        // THE FIX: Check if scene and add still exist
+        if (this.scene && this.scene.add) {
+          this.finalCosmicExplosion();
+        }
+      },
+    });
+  }
+  releaseDeathSmoke() {
+    const positions = [
+      { x: -55, y: -50 },
+      { x: 55, y: -50 },
+      { x: -50, y: 70 },
+      { x: 50, y: 70 },
+    ];
+    positions.forEach((pos) => {
+      const smoke = this.scene.add.circle(
+        this.x + pos.x,
+        this.y + pos.y,
+        5,
+        0x666666,
+        0.5,
+      );
+      smoke.setDepth(this.depth + 10);
+      this.scene.tweens.add({
+        targets: smoke,
+        y: "-=100",
+        x: `+=${Phaser.Math.Between(-20, 20)}`,
+        alpha: 0,
+        scale: 4,
+        duration: 1000,
+        onComplete: () => smoke.destroy(),
+      });
     });
   }
 
-  createBigBossExplosion() {
-    // Massive lingering smoke clouds
+  finalCosmicExplosion() {
+    // 1. The "Aurora" Streaks (Geometric/Energy look)
+    const colors = [0x00ffff, 0xbf00ff, 0xffffff];
+    for (let i = 0; i < 40; i++) {
+      const color = Phaser.Math.RND.pick(colors);
+      const streak = this.scene.add.rectangle(this.x, this.y, 2, 100, color);
+      streak.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
+      streak.setBlendMode("ADD");
+      this.scene.tweens.add({
+        targets: streak,
+        width: 20,
+        height: 600,
+        alpha: 0,
+        duration: 1500,
+        ease: "Expo.out",
+        // Inside finalCosmicExplosion's onComplete:
+        onComplete: () => {
+          streak.destroy();
+          // Tell the scene the boss is defeated so it can show "Level Complete"
+          if (this.scene && this.scene.onBossDefeated) {
+            this.scene.onBossDefeated();
+          }
+          this.destroy();
+        },
+      });
+    }
+
+    // 2. The "Big Smoke" (Modified to be more "Nebula" like)
     this.scene.add
       .particles(this.x, this.y, "fire_particle", {
-        speed: { min: 20, max: 150 },
-        scale: { start: 2, end: 4 },
-        alpha: { start: 0.7, end: 0 },
-        lifespan: 2000,
-        tint: 0x444444, // Dark heavy smoke
-        quantity: 50,
-        stopAfter: 50,
+        speed: { min: 50, max: 200 },
+        scale: { start: 1, end: 5 },
+        alpha: { start: 0.6, end: 0 },
+        lifespan: 2500,
+        tint: [0x444444, 0x220044, 0x002244], // Mixes dark smoke with deep purple/blue
+        quantity: 40,
+        stopAfter: 40,
+        blendMode: "NORMAL",
       })
       .setDepth(200);
+
+    // 3. Screen Effects
+    this.scene.cameras.main.flash(1000, 255, 255, 255);
+    this.scene.cameras.main.shake(500, 0.05);
+
+    this.destroy();
   }
   update(time, delta) {
+    if (this.isDead) return;
     super.update(time, delta);
 
     if (this.coreBall && this.coreGlow) {
@@ -645,6 +720,18 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.drawLightning();
     } else if (this.lightningGraphics) {
       this.lightningGraphics.clear();
+    }
+  }
+  // stop jumping colors when getting hit
+  takeDamage(amount) {
+    if (this.isDead) return; // Important: Stop processing damage if already dying
+
+    this.hp -= amount;
+    if (this.updateHPBar) this.updateHPBar();
+    if (this.checkRage) this.checkRage();
+
+    if (this.hp <= 0) {
+      this.die();
     }
   }
 }
