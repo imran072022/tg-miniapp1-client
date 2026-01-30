@@ -18,6 +18,10 @@ export default class BaseBoss extends Phaser.Physics.Arcade.Sprite {
     this.hpBarOffset = -60;
     // Default hit color for sparkle
     this.hitColor = 0xffff00;
+    this.isEntering = true;
+    // boss enraging
+    this.ragePercent = 0.5;
+    this.isRaged = false;
   }
 
   updateHPBar() {
@@ -52,33 +56,31 @@ export default class BaseBoss extends Phaser.Physics.Arcade.Sprite {
 
     if (this.hp <= 0) this.die();
   }
-  // Call this whenever the boss takes damage
+
   checkRage() {
-    if (!this.isRaged && this.hp < this.maxHp * 0.5) {
+    if (!this.isRaged && this.hp < this.maxHp * this.ragePercent) {
       this.isRaged = true;
-      this.onRage(); // This calls the specific boss's changes
+      this.onRage();
     }
   }
-
-  // This is the visual stuff that happens for EVERY boss
   onRage() {
-    this.setTint(0xff00ff); // Turn Magenta
-    this.scene.cameras.main.flash(300, 255, 0, 0); // Red Flash
-
-    // Call the specific attack changes for the Phantom
+    this.setTint(this.rageColor || 0xff00ff);
     if (this.upgradeAttacks) this.upgradeAttacks();
   }
-  // This handles the Level 2/3 Elite Death we built
+
   die() {
     if (this.isDead) return;
     this.isDead = true;
-
+    // 1. Kill the HP bar and ALL tweens
     if (this.hpBar) this.hpBar.destroy();
+    this.scene.tweens.killTweensOf(this);
+    // 2. Kill the Fire Timer (Added this check)
+    if (this.fireTimer) this.fireTimer.remove();
+    // 3. Keep your existing timer removals
     if (this.novaTimer) this.novaTimer.remove();
     if (this.dashTimer) this.dashTimer.remove();
-    this.scene.tweens.killTweensOf(this);
-    this.body.enable = false;
-
+    // 4. Disable physics so bullets pass through the "corpse"
+    if (this.body) this.body.enable = false;
     const deathScene = this.scene;
 
     // Explosion logic (simplified for the base)
@@ -111,5 +113,78 @@ export default class BaseBoss extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
     this.updateHPBar();
+  }
+
+  // ===============for Level 1-2 ===================
+  // ADD THESE TO THE BOTTOM OF YOUR BaseBoss CLASS (Inside the class braces)
+
+  // 1. Common Entry and Movement
+  startMovementPattern() {
+    const { width } = this.scene.scale;
+    this.scene.tweens.add({
+      targets: this,
+      x: width - 100,
+      duration: 1500,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        if (!this.active || this.isDead) return;
+        this.scene.tweens.add({
+          targets: this,
+          x: { from: width - 100, to: 100 },
+          duration: 3000,
+          yoyo: true,
+          loop: -1,
+          ease: "Sine.easeInOut",
+        });
+      },
+    });
+  }
+
+  // 2. Common Attack: The 3-way Shell Burst
+  spawnShells() {
+    if (this.isDead || !this.active) return;
+    const shellSpeeds = [
+      { x: -120, y: 400 },
+      { x: 0, y: 450 },
+      { x: 120, y: 400 },
+    ];
+    shellSpeeds.forEach((speed) => {
+      // Glow and Core visuals from your original code
+      const glow = this.scene.add.circle(
+        this.x,
+        this.y + 40,
+        10,
+        0x00ffff,
+        0.3,
+      );
+      const core = this.scene.add.circle(this.x, this.y + 40, 6, 0xffffff, 1);
+      this.scene.physics.add.existing(core);
+      core.body.setVelocity(speed.x, speed.y);
+      // Trail/Update Logic
+      const handleUpdate = () => {
+        if (!this.scene || !core.active || !glow.active) {
+          if (this.scene) this.scene.events.off("update", handleUpdate);
+          return;
+        }
+        glow.x = core.x;
+        glow.y = core.y;
+      };
+      this.scene.events.on("update", handleUpdate);
+      // Collision
+      this.scene.physics.add.overlap(this.scene.player, core, () => {
+        this.scene.events.off("update", handleUpdate);
+        core.destroy();
+        glow.destroy();
+        this.scene.takeDamage(10);
+      });
+      // Cleanup
+      this.scene.time.delayedCall(2500, () => {
+        if (core.active) {
+          if (this.scene) this.scene.events.off("update", handleUpdate);
+          core.destroy();
+          glow.destroy();
+        }
+      });
+    });
   }
 }

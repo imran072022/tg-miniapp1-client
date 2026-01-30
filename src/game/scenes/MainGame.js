@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import Enemy from "../entities/enemies/Enemy";
 import Projectile from "../abilities/Projectiles";
-import Boss from "../entities/enemies/Bosses";
 import { SHIP_CONFIGS } from "../../config/ShipConfig";
+import GuardianBoss from "../entities/Boss/Level1Boss";
+import StormBoss from "../entities/Boss/Level2Boss";
 import PhantomBoss from "../entities/Boss/PhantomBoss";
+import EnergyCoreBoss from "../entities/Boss/EnergyCoreBoss";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -20,7 +22,7 @@ export class MainGame extends Phaser.Scene {
     this.gameTimer = 0;
     this.currentWave = 1;
     this.spawnRate = 1000;
-    this.currentLevel = 3; // Tracks how many cycles we've completed
+    this.currentLevel = 4; // Tracks how many cycles we've completed
   }
   // ============ Functions called inside create() =============
   setupPlayer() {
@@ -188,26 +190,14 @@ export class MainGame extends Phaser.Scene {
     if (this.spawnTimer) this.spawnTimer.remove();
     const { width } = this.scale;
     // --- MODULAR BOSS SELECTION ---
-    // --- MODULAR BOSS SELECTION ---
-    if (this.currentLevel === 3) {
+    if (this.currentLevel === 1) {
+      this.boss = new GuardianBoss(this, width / 2, -100);
+    } else if (this.currentLevel === 2) {
+      this.boss = new StormBoss(this, width / 2, -100);
+    } else if (this.currentLevel === 3) {
       this.boss = new PhantomBoss(this, width / 2, -100);
-    } else {
-      // Both Level 1 and Level 2 will now use the "boss1" image
-      const textureKey = "boss1";
-
-      this.boss = new Boss(
-        this,
-        width / 2,
-        -100,
-        textureKey,
-        2000,
-        this.currentLevel,
-      );
-
-      // To make Level 2 look different, we can tint it via code!
-      if (this.currentLevel === 2) {
-        this.boss.setTint(0xffaa00); // Give Level 2 an Orange/Gold tint
-      }
+    } else if (this.currentLevel === 4) {
+      this.boss = new EnergyCoreBoss(this, width / 2, -100);
     }
     this.setupBossCollisions();
     // Listen for the boss death

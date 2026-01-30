@@ -4,9 +4,12 @@ import BaseBoss from "./BaseBoss";
 export default class PhantomBoss extends BaseBoss {
   constructor(scene, x, y) {
     super(scene, x, y, "boss3", 3, 500);
-    this.setTint(0x00ffff);
+    this.setTint(0x00ffff); // boss color
     this.setScale(1.2);
+    // rage related
     this.isRaged = false;
+    this.ragePercent = 0.4;
+    this.rageColor = 0xff00ff;
     this.hpBarOffset = -90; // hp bar position
     this.hitColor = 0xff4500; // sparkle color
     if (this.body) this.body.collideWorldBounds = false;
