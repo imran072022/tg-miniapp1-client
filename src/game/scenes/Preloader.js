@@ -11,18 +11,30 @@ export class Preloader extends Phaser.Scene {
 
   preload() {
     this.load.path = "/assets/";
+    // Background images
     this.load.image("nebula", "battlefieldBg.jpeg");
+    this.load.image("stage1Entry", "stage1Entry.jpg");
+    this.load.image("stage1Mid", "stage1Mid.jpg");
+    this.load.image("stage1Exit", "stage1Exit.jpg");
+    this.load.image("stage2Entry", "stage2Entry.jpg");
+    this.load.image("stage2Mid", "stage2Mid.jpg");
+    this.load.image("stage2Exit", "stage2Exit.jpg");
+    this.load.image("temporaryBG", "temporaryBG.jpg");
+    // Player images
     this.load.image("plane", "plane.png");
     this.load.image("spaceship1", "spaceShip1.png");
-    this.load.image("flash", "muzzleFlash.png");
-    this.load.image("enemyType1", "enemyType1.png");
-    this.load.image("enemyType2", "enemyType2.png");
+    this.load.image("player3", "player3.png");
+    // Boss images
     this.load.image("boss1", "boss1.png");
-    this.load.image("helicopter", "helicopter.png");
-    this.load.image("heliFan", "heliFan.png");
     this.load.image("boss3", "boss3.png");
     this.load.image("boss4", "boss4.png");
     this.load.image("turret", "turret.png");
+    // Enemy images
+    this.load.image("enemyType1", "enemyType1.png");
+    this.load.image("enemyType2", "enemyType2.png");
+    this.load.image("helicopter", "helicopter.png");
+    this.load.image("heliFan", "heliFan.png");
+    this.load.image("flash", "muzzleFlash.png");
 
     // We still call this here or in create.
     // Usually, createTextures is best in create() to ensure the renderer is ready.

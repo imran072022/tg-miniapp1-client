@@ -11,8 +11,8 @@ const CARDS_DATA = [
     border: "border-cyan-500/50",
   },
   {
-    id: "PLASMA",
-    name: "NEON STRIKER",
+    id: "swift_bird",
+    name: "Swift Bird",
     rarity: "Rare",
     color: "text-purple-400",
     border: "border-purple-500/50",

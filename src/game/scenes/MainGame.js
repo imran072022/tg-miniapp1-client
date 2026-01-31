@@ -6,6 +6,9 @@ import GuardianBoss from "../entities/Boss/Level1Boss";
 import StormBoss from "../entities/Boss/Level2Boss";
 import PhantomBoss from "../entities/Boss/PhantomBoss";
 import EnergyCoreBoss from "../entities/Boss/EnergyCoreBoss";
+import Titan from "../entities/Players/Titan";
+import Vanguard from "../entities/Players/Vanguard";
+import SwiftBird from "../entities/Players/SwiftBird";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -22,67 +25,82 @@ export class MainGame extends Phaser.Scene {
     this.gameTimer = 0;
     this.currentWave = 1;
     this.spawnRate = 1000;
-    this.currentLevel = 4; // Tracks how many cycles we've completed
+    this.currentLevel = 1; // Tracks how many cycles we've completed
   }
   // ============ Functions called inside create() =============
   setupPlayer() {
     const { width, height } = this.scale;
-    // Get the config based on what the user equipped (from init)
-    this.shipConfig = SHIP_CONFIGS[this.equippedCard] || SHIP_CONFIGS.STARTER;
-    // Create the player sprite
-    this.player = this.physics.add
-      .sprite(width / 2, height - 120, this.shipConfig.key)
-      .setScale(this.shipConfig.scale)
-      .setCollideWorldBounds(true)
-      .setDepth(10);
-    this.player.body.setAllowGravity(false);
-    this.player.hp = this.shipConfig.hp;
+
+    if (this.equippedCard === "TITAN") {
+      this.player = new Titan(this, width / 2, height - 120);
+    } else if (this.equippedCard === "swift_bird") {
+      this.player = new SwiftBird(this, width / 2, height - 120);
+    } else {
+      this.player = new Vanguard(this, width / 2, height - 120);
+    }
+  }
+  createImpactSparks(x, y, color, isBoss = false) {
+    const particleCount = isBoss ? 20 : 5; // Bosses get a bigger explosion
+    const scaleRange = isBoss ? { start: 0.6, end: 0 } : { start: 0.3, end: 0 };
+    const speedRange = isBoss ? 300 : 150;
+    const emitter = this.add.particles(x, y, "energy_bullet", {
+      speed: { min: -speedRange, max: speedRange },
+      angle: { min: 0, max: 360 },
+      scale: scaleRange,
+      alpha: { start: 1, end: 0 },
+      lifespan: 400,
+      blendMode: "ADD",
+      tint: color,
+      quantity: particleCount,
+      emitting: false, // Trigger once
+    });
+    emitter.explode();
+    // Auto-cleanup after half a second
+    this.time.delayedCall(500, () => emitter.destroy());
+    // Big Screen Shake for Boss Hits
+    if (isBoss) {
+      this.cameras.main.shake(100, 0.008);
+    }
   }
   setupCollisions() {
-    // Collision A: Bullets vs enemy
+    // Collision A: Bullets vs Enemy (Keep this as is)
     this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
       const ex = enemy.x;
       const ey = enemy.y;
+      const sparkColor = bullet.tintTopLeft || 0xff00ff;
+      const isBoss = enemy.maxHP > 1000 || enemy.isBoss;
+      this.createImpactSparks(bullet.x, bullet.y, sparkColor, isBoss);
       bullet.destroy();
-
       if (enemy.active && !enemy.isDead) {
-        enemy.takeDamage(10);
+        enemy.takeDamage(10); // Or use bullet.damage if you have it
         if (enemy.hp <= 0) {
+          // Big explosion logic here if the enemy dies
           this.showGoldPopup(ex, ey, 10);
         }
       }
     });
-    // Collision B: Player vs enemy
-    this.physics.add.overlap(this.player, this.enemies, (_, enemy) => {
+    // Collision B: Player vs Enemy (UPDATED)
+    this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
       if (enemy.active && !enemy.isDead) {
         const ex = enemy.x;
         const ey = enemy.y;
         enemy.die();
-        this.takeDamage(20);
+        player.takeDamage(20);
         this.showGoldPopup(ex, ey, 10);
       }
     });
-
-    // Collision: Helicopter Bullets vs Player
+    // Collision C: Enemy Bullets vs Player (UPDATED)
     this.physics.add.overlap(
       this.player,
       this.enemyBullets,
       (player, bullet) => {
-        if (this.isGameOver) return; // Don't trigger if already dead
+        if (this.isGameOver) return;
         bullet.destroy();
-        this.takeDamage(10);
+        player.takeDamage(10);
       },
     );
   }
   setupTimers() {
-    // Bullet/Shooting Timer
-    this.time.addEvent({
-      delay: this.shipConfig.fireRate,
-      callback: this.fireBullet,
-      callbackScope: this,
-      loop: true,
-    });
-
     // Enemy Spawn Timer
     this.spawnTimer = this.time.addEvent({
       delay: 1000,
@@ -109,9 +127,14 @@ export class MainGame extends Phaser.Scene {
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
     this.bg = this.add
-      .tileSprite(0, 0, width, height, "nebula")
+      .tileSprite(0, 0, width, height, "stage1Mid")
       .setOrigin(0, 0)
       .setDepth(-1);
+    this.bg.tileScaleX =
+      width / this.textures.get("stage1Mid").getSourceImage().width;
+    this.bg.tileScaleY =
+      height / this.textures.get("stage1Mid").getSourceImage().height;
+
     // 2. Groups
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
@@ -205,6 +228,7 @@ export class MainGame extends Phaser.Scene {
       this.handleBossVictory();
     });
   }
+
   handleBossVictory() {
     this.time.delayedCall(3000, () => {
       this.currentLevel++; // Increase difficulty multiplier
@@ -295,51 +319,6 @@ export class MainGame extends Phaser.Scene {
       this.game.events.emit("GAME_OVER", this.gold);
     }
   }
-  fireBullet() {
-    if (this.isGameOver || !this.player.active) return;
-    const spawnShot = (xOff, vXOff) => {
-      const bullet = new Projectile(
-        this,
-        this.player.x + xOff,
-        this.player.y - 30,
-        "energy_bullet",
-        this.shipConfig,
-      );
-
-      // FIX: Add to group FIRST
-      this.bullets.add(bullet);
-
-      // FIX: Set velocities AFTER adding to group to ensure they "stick"
-      bullet.body.velocity.y = this.shipConfig.bVel;
-      bullet.body.velocity.x = vXOff;
-    };
-    if (this.shipConfig.shotType === "QUAD") {
-      spawnShot(-15, 0);
-      spawnShot(15, 0);
-      spawnShot(-20, -150);
-      spawnShot(20, 150);
-      // We can still trigger a simple flash here or move it to Projectile
-      this.triggerMuzzleFlash(0);
-    } else {
-      spawnShot(0, 0);
-      this.triggerMuzzleFlash(0);
-    }
-  }
-  // Keep a very simple version for the ship
-  triggerMuzzleFlash(xOff) {
-    const flash = this.add
-      .sprite(this.player.x + xOff, this.player.y - 45, "flash")
-      .setDepth(11)
-      .setScale(0.8);
-    this.tweens.add({
-      targets: flash,
-      scale: 1.2,
-      alpha: 0,
-      duration: 50,
-      onComplete: () => flash.destroy(),
-    });
-  }
-
   // NEW Step 4: Logic-based spawning
   spawnEnemy() {
     if (this.isGameOver || this.currentWave === "BOSS") return;
@@ -395,26 +374,6 @@ export class MainGame extends Phaser.Scene {
     }
   }
   // =========== Functions called inside update() =============
-  handlePlayerMovement() {
-    const pointer = this.input.activePointer;
-    if (pointer.isDown) {
-      // Smooth X movement
-      this.player.x = Phaser.Math.Linear(this.player.x, pointer.x, 0.2);
-      // Smooth Y movement with Safety Clamp
-      const targetY = Phaser.Math.Clamp(
-        pointer.y - 50,
-        100,
-        this.scale.height - 50,
-      );
-      this.player.y = Phaser.Math.Linear(this.player.y, targetY, 0.2);
-    }
-  }
-  updateProjectiles() {
-    this.bullets.children.each((b) => {
-      b.update(); // Runs the Projectile's internal update logic
-      if (b.y < -50) b.destroy(); // Cleanup off-screen
-    });
-  }
   updateEnemies(time) {
     this.enemies.children.each((e) => {
       e.update(time); // Runs health bar drawing and movement
@@ -430,17 +389,17 @@ export class MainGame extends Phaser.Scene {
     if (this.isGameOver || this.currentWave === "BOSS") return;
     this.gameTimer += delta;
     // --- WAVE 1 to 2 GAP (at 15s) ---
-    if (this.currentWave === 1 && this.gameTimer > 0) {
+    if (this.currentWave === 1 && this.gameTimer > 15000) {
       if (this.spawnTimer) this.spawnTimer.paused = true; // Stop spawning
       this.startNextWave(2, 800); // This shows text and resumes after 2s
     }
     // --- WAVE 2 to 3 GAP (at 30s) ---
-    if (this.currentWave === 2 && this.gameTimer > 0) {
+    if (this.currentWave === 2 && this.gameTimer > 30000) {
       if (this.spawnTimer) this.spawnTimer.paused = true;
       this.startNextWave(3, 1200);
     }
     // --- BOSS PREP (at 45s) ---
-    if (this.currentWave === 3 && this.gameTimer > 0) {
+    if (this.currentWave === 3 && this.gameTimer > 45000) {
       this.currentWave = "BOSS_PREP"; // Temporary state for the gap
       // 1. Stop Spawning
       if (this.spawnTimer) this.spawnTimer.remove();
@@ -481,16 +440,27 @@ export class MainGame extends Phaser.Scene {
       });
     }
   }
+  updateProjectiles() {
+    this.bullets.getChildren().forEach((bullet) => {
+      if (bullet.active) {
+        bullet.update();
+      }
+    });
+  }
   update(time, delta) {
     if (this.isGameOver) return;
     // 1. Visuals
-    this.bg.tilePositionY -= 1;
+    this.bg.tilePositionY -= 0.2;
     // 2. Systems
-    this.handlePlayerMovement();
-    this.updateProjectiles();
     this.updateEnemies(time);
     this.checkGameTimeline(delta);
-    // 3. Special Entities
+    // 3. Tell Bullets to handle their particles/cleanup
+    this.updateProjectiles();
+    // 4. Tell Player to handle movement & firing
+    if (this.player && this.player.active) {
+      this.player.update(time, delta);
+    }
+    // BaseBoss will run it's update
     if (this.boss && this.boss.active) {
       this.boss.update();
     }
