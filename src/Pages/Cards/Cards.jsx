@@ -1,30 +1,6 @@
 import React, { useState } from "react";
 import { useGame } from "../../hooks/useGame";
-
-// Static data for now - later this can move to a separate config file
-const CARDS_DATA = [
-  {
-    id: "STARTER",
-    name: "VOID PULSE",
-    rarity: "Common",
-    color: "text-cyan-400",
-    border: "border-cyan-500/50",
-  },
-  {
-    id: "swift_bird",
-    name: "Swift Bird",
-    rarity: "Rare",
-    color: "text-purple-400",
-    border: "border-purple-500/50",
-  },
-  {
-    id: "TITAN",
-    name: "IRON BEAMER",
-    rarity: "Legendary",
-    color: "text-yellow-400",
-    border: "border-yellow-500/80 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
-  },
-];
+import { SHIP_CONFIGS } from "../../config/ShipConfig";
 
 const Cards = () => {
   const { equippedCard, setEquippedCard } = useGame();
@@ -34,7 +10,7 @@ const Cards = () => {
     <div className="h-full p-4 overflow-y-auto pb-24">
       {/* GRID CONTAINER */}
       <div className="grid grid-cols-2 gap-3">
-        {CARDS_DATA.map((card) => (
+        {SHIP_CONFIGS.map((card) => (
           <div
             key={card.id}
             className={`flex flex-col bg-slate-800 rounded-xl border-2 transition-all duration-300 ${
@@ -51,8 +27,10 @@ const Cards = () => {
                   card.id === equippedCard ? "scale-125" : "opacity-40"
                 }`}
               >
-                🚀
+                {/* Visual logic for Helicopter vs Jet */}
+                {card.id === "cyber_pulse_808" ? "🚁" : "🚀"}
               </span>
+
               {card.id === equippedCard && (
                 <div className="absolute top-2 right-2 bg-cyan-500 text-[8px] font-black px-2 py-1 rounded-full animate-pulse">
                   EQUIPPED
@@ -60,9 +38,9 @@ const Cards = () => {
               )}
             </div>
 
-            {/* CARD DETAILS */}
+            {/* CARD DETAILS - RESTORED */}
             <div className="p-2">
-              <h3 className="text-sm font-bold truncate uppercase">
+              <h3 className="text-sm font-bold truncate uppercase text-white">
                 {card.name}
               </h3>
               <p className={`text-[9px] uppercase font-black ${card.color}`}>
@@ -72,11 +50,11 @@ const Cards = () => {
               <div className="mt-2 flex gap-1">
                 <button
                   onClick={() => setSelectedCardInfo(card)}
-                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-[10px] py-2 rounded font-bold transition-colors"
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-[10px] py-2 rounded font-bold transition-colors text-white"
                 >
                   INFO
                 </button>
-                <button className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-[10px] py-2 rounded font-bold transition-colors">
+                <button className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-[10px] py-2 rounded font-bold transition-colors text-white">
                   UPGRADE
                 </button>
               </div>
@@ -90,9 +68,11 @@ const Cards = () => {
         <div className="absolute inset-0 z-[150] bg-black/90 p-8 flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-800 border border-white/10 p-6 rounded-[32px] w-full max-w-xs text-center shadow-2xl animate-in zoom-in duration-300">
             <div className="w-20 h-20 bg-slate-700 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl shadow-inner border border-white/5">
-              🚀
+              {selectedCardInfo.id === "cyber_pulse_808" ? "🚁" : "🚀"}
             </div>
-            <h2 className="text-2xl font-black">{selectedCardInfo.name}</h2>
+            <h2 className="text-2xl font-black text-white">
+              {selectedCardInfo.name}
+            </h2>
             <p
               className={`${selectedCardInfo.color} text-[10px] font-bold mb-4 uppercase tracking-widest`}
             >
@@ -105,19 +85,13 @@ const Cards = () => {
               </p>
               <p className="flex justify-between">
                 <span>⚔️ DPS</span>
-                <span className="text-white">
-                  {selectedCardInfo.id === "PLASMA"
-                    ? "145"
-                    : selectedCardInfo.id === "TITAN"
-                      ? "400"
-                      : "50"}
-                </span>
+                <span className="text-white">{selectedCardInfo.dps}</span>
               </p>
             </div>
 
             <button
               onClick={() => setSelectedCardInfo(null)}
-              className="w-full bg-slate-700 hover:bg-slate-600 py-4 rounded-2xl font-black uppercase text-sm transition-colors"
+              className="w-full bg-slate-700 hover:bg-slate-600 py-4 rounded-2xl font-black uppercase text-sm transition-colors text-white"
             >
               Close
             </button>

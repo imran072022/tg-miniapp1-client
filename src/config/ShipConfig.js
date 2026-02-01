@@ -1,20 +1,34 @@
-export const SHIP_CONFIGS = {
-  STARTER: {
-    key: "plane",
-    scale: 0.15,
-    fireRate: 250,
-    bVel: -600,
-    bScale: 0.6,
-    shotType: "SINGLE",
-    hp: 10000,
+export const SHIP_CONFIGS = [
+  {
+    id: "vanguard",
+    name: "vanguard",
+    rarity: "Common",
+    color: "text-cyan-400",
+    border: "border-cyan-500/50",
+    dps: 50,
   },
-  TITAN: {
-    key: "spaceship1",
-    scale: 0.1,
-    fireRate: 180,
-    bVel: -800,
-    bScale: 0.8,
-    shotType: "QUAD",
-    hp: 1000,
+  {
+    id: "swift_bird",
+    name: "Swift Bird",
+    rarity: "Epic",
+    color: "text-purple-400",
+    border: "border-purple-500/50",
+    dps: 145,
   },
-};
+  {
+    id: "titan",
+    name: "Titan",
+    rarity: "Epic",
+    color: "text-purple-400",
+    border: "border-yellow-500/80 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
+    dps: 400,
+  },
+  {
+    id: "cyber_pulse_808",
+    name: "Cyber-Pulse 808",
+    rarity: "Legendary",
+    color: "text-yellow-500",
+    border: "border-yellow-500/80 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
+    dps: 650,
+  },
+];

@@ -9,6 +9,7 @@ import EnergyCoreBoss from "../entities/Boss/EnergyCoreBoss";
 import Titan from "../entities/Players/Titan";
 import Vanguard from "../entities/Players/Vanguard";
 import SwiftBird from "../entities/Players/SwiftBird";
+import CyberPulse808 from "../entities/Players/CyberPulse808";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -31,10 +32,12 @@ export class MainGame extends Phaser.Scene {
   setupPlayer() {
     const { width, height } = this.scale;
 
-    if (this.equippedCard === "TITAN") {
+    if (this.equippedCard === "titan") {
       this.player = new Titan(this, width / 2, height - 120);
     } else if (this.equippedCard === "swift_bird") {
       this.player = new SwiftBird(this, width / 2, height - 120);
+    } else if (this.equippedCard === "cyber_pulse_808") {
+      this.player = new CyberPulse808(this, width / 2, height - 120);
     } else {
       this.player = new Vanguard(this, width / 2, height - 120);
     }
@@ -127,13 +130,9 @@ export class MainGame extends Phaser.Scene {
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
     this.bg = this.add
-      .tileSprite(0, 0, width, height, "stage1Mid")
+      .tileSprite(0, 0, width, height, "nebula")
       .setOrigin(0, 0)
       .setDepth(-1);
-    this.bg.tileScaleX =
-      width / this.textures.get("stage1Mid").getSourceImage().width;
-    this.bg.tileScaleY =
-      height / this.textures.get("stage1Mid").getSourceImage().height;
 
     // 2. Groups
     this.bullets = this.physics.add.group();

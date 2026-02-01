@@ -20,10 +20,12 @@ export class Preloader extends Phaser.Scene {
     this.load.image("stage2Mid", "stage2Mid.jpg");
     this.load.image("stage2Exit", "stage2Exit.jpg");
     this.load.image("temporaryBG", "temporaryBG.jpg");
+    this.load.image("desertBG", "desertBG.jpg");
     // Player images
     this.load.image("plane", "plane.png");
     this.load.image("spaceship1", "spaceShip1.png");
     this.load.image("player3", "player3.png");
+    this.load.image("player4", "player4.png");
     // Boss images
     this.load.image("boss1", "boss1.png");
     this.load.image("boss3", "boss3.png");
