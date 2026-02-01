@@ -1,15 +1,17 @@
 import Phaser from "phaser";
 import Enemy from "../entities/enemies/Enemy";
-import Projectile from "../abilities/Projectiles";
-import { SHIP_CONFIGS } from "../../config/ShipConfig";
+//Bosses
 import GuardianBoss from "../entities/Boss/Level1Boss";
 import StormBoss from "../entities/Boss/Level2Boss";
 import PhantomBoss from "../entities/Boss/PhantomBoss";
 import EnergyCoreBoss from "../entities/Boss/EnergyCoreBoss";
+//Players
 import Titan from "../entities/Players/Titan";
 import Vanguard from "../entities/Players/Vanguard";
 import SwiftBird from "../entities/Players/SwiftBird";
 import CyberPulse808 from "../entities/Players/CyberPulse808";
+// Super Button
+import SuperButton from "../abilities/SuperButton";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -66,7 +68,7 @@ export class MainGame extends Phaser.Scene {
     }
   }
   setupCollisions() {
-    // Collision A: Bullets vs Enemy (Keep this as is)
+    // Collision A: player bullets hit enemy
     this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
       const ex = enemy.x;
       const ey = enemy.y;
@@ -75,9 +77,14 @@ export class MainGame extends Phaser.Scene {
       this.createImpactSparks(bullet.x, bullet.y, sparkColor, isBoss);
       bullet.destroy();
       if (enemy.active && !enemy.isDead) {
-        enemy.takeDamage(10); // Or use bullet.damage if you have it
+        enemy.takeDamage(10);
+        this.player.ultCharge = Math.min(this.player.ultCharge + 2, 100);
+        this.superBtn.updateCharge(this.player.ultCharge);
+        if (this.player.ultCharge >= 100) {
+          this.player.isUltReady = true;
+          this.superBtn.setReady(true);
+        }
         if (enemy.hp <= 0) {
-          // Big explosion logic here if the enemy dies
           this.showGoldPopup(ex, ey, 10);
         }
       }
@@ -126,6 +133,7 @@ export class MainGame extends Phaser.Scene {
   }
   // ============ Scene Creation (2) =============
   create() {
+    this.isTouchingUI = false;
     const { width, height } = this.scale;
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
@@ -138,13 +146,18 @@ export class MainGame extends Phaser.Scene {
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
-    // 3. System Initialization
+    // 3. Super Button
+    // Position the container at the bottom right
+    const x = this.scale.width - 80;
+    const y = this.scale.height - 80;
+    this.superBtn = new SuperButton(this, x, y);
+    // 4. System Initialization
     this.setupPlayer();
     this.setupTimers();
     this.setupCollisions();
-    // 4. UI / HUD
+    // 5. UI / HUD
     this.setupUI(); // You can move the goldText creation here too!
-    // 5. World Setup
+    // 6. World Setup
     this.physics.world.setBounds(0, 0, width, height, true, true, false, false);
     this.physics.world.TILE_BIAS = 32;
   }

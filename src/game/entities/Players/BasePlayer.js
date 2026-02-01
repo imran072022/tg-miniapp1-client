@@ -25,15 +25,18 @@ export default class BasePlayer extends Phaser.Physics.Arcade.Sprite {
 
   handleMovement() {
     const pointer = this.scene.input.activePointer;
-    if (pointer.isDown) {
-      this.x = Phaser.Math.Linear(this.x, pointer.x, 0.2);
-      const targetY = Phaser.Math.Clamp(
-        pointer.y - 50,
-        100,
-        this.scene.scale.height - 50,
-      );
-      this.y = Phaser.Math.Linear(this.y, targetY, 0.2);
+    if (!pointer.isDown) {
+      this.scene.isTouchingUI = false; // Reset when finger is lifted
+      return;
     }
+    if (this.scene.isTouchingUI) return;
+    this.x = Phaser.Math.Linear(this.x, pointer.x, 0.2);
+    const targetY = Phaser.Math.Clamp(
+      pointer.y - 50,
+      100,
+      this.scene.scale.height - 50,
+    );
+    this.y = Phaser.Math.Linear(this.y, targetY, 0.2);
   }
   updateHPBar() {
     this.hpBar.clear();

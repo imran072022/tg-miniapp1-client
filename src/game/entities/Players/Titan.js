@@ -13,6 +13,12 @@ export default class Titan extends BasePlayer {
   }
 
   fire(time) {
+    // 1. Core Glow: The ship flashes white-hot momentarily when discharging 4 bolts
+    this.setTint(0xffffff);
+    this.scene.time.delayedCall(40, () => {
+      if (this.active) this.setTint(0xffcc66); // Return to Golden Armor
+    });
+
     const spawnShot = (xOff, vXOff) => {
       const bullet = new Projectile(
         this.scene,
@@ -22,41 +28,37 @@ export default class Titan extends BasePlayer {
         this,
       );
       this.scene.bullets.add(bullet);
-      // Control physics directly here so it never breaks
+
       bullet.body.velocity.y = this.bulletVel;
       bullet.body.velocity.x = vXOff;
-      bullet.setTint(0xffaa00);
+
+      // Bright Plasma Look
+      bullet.setDisplaySize(14, 40);
+      // Multi-tint: Top is White (Hot), Bottom is Orange (Cooling)
+      bullet.setTint(0xffffff, 0xffffff, 0xffaa00, 0xffaa00);
+
       this.addTitanTrail(bullet);
     };
-    spawnShot(-15, 0);
-    spawnShot(15, 0);
-    spawnShot(-20, -150);
-    spawnShot(20, 150);
-    this.triggerMuzzleFlash(0);
-  }
 
-  addTitanTrail(bullet) {
-    const emitter = this.scene.add.particles(0, 0, bullet.texture.key, {
-      speed: { min: 10, max: 50 },
-      scale: { start: 0.4, end: 0 },
-      alpha: { start: 0.5, end: 0 },
-      lifespan: 300,
-      gravityY: 400,
-      blendMode: "ADD",
-      follow: bullet,
-      tint: 0xffaa00,
-    });
-    bullet.once("destroy", () => {
-      emitter.stop();
-      this.scene.time.delayedCall(300, () => emitter.destroy());
+    // The 4-shot pattern
+    const nozzles = [-20, -10, 10, 20];
+    const angles = [-160, 0, 0, 160]; // Slightly wider spread
+
+    nozzles.forEach((xPos, index) => {
+      spawnShot(xPos, angles[index]);
+      this.triggerMuzzleFlash(xPos);
     });
   }
 
   triggerMuzzleFlash(xOff) {
+    // Brighter Sparkle: Using 'ADD' blend mode for a glowing effect
     const flash = this.scene.add
-      .sprite(this.x + xOff, this.y - 45, "flash")
+      .sprite(this.x + xOff, this.y - 35, "flash")
       .setDepth(11)
-      .setScale(0.8);
+      .setScale(0.5)
+      .setBlendMode("ADD")
+      .setTint(0xffffff); // Pure white sparkle for maximum contrast
+
     this.scene.tweens.add({
       targets: flash,
       scale: 1.2,
@@ -64,5 +66,26 @@ export default class Titan extends BasePlayer {
       duration: 50,
       onComplete: () => flash.destroy(),
     });
+  }
+  addTitanTrail(bullet) {
+    // UPGRADE: "Heat Ribbon" trail instead of falling particles
+    const emitter = this.scene.add.particles(0, 0, bullet.texture.key, {
+      follow: bullet,
+      scale: { start: 0.6, end: 0 },
+      alpha: { start: 0.4, end: 0 },
+      lifespan: 150,
+      blendMode: "ADD",
+      tint: 0xff5500,
+      frequency: 10,
+    });
+
+    bullet.once("destroy", () => {
+      emitter.stop();
+      this.scene.time.delayedCall(150, () => emitter.destroy());
+    });
+  }
+
+  preUpdate(time, delta) {
+    super.preUpdate(time, delta);
   }
 }

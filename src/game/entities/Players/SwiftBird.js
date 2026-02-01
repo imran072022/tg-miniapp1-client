@@ -24,8 +24,8 @@ export default class SwiftBird extends BasePlayer {
     this.setTint(0xffd9ff);
 
     // Initial Visuals
-    this.createThruster(scene, -22, 25);
-    this.createThruster(scene, 22, 25);
+    this.createThruster(scene, -10, 18);
+    this.createThruster(scene, 10, 18);
   }
 
   // Helper: Create Thruster Particles
