@@ -70,6 +70,13 @@ export class MainGame extends Phaser.Scene {
   setupCollisions() {
     // Collision A: player bullets hit enemy
     this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
+      // Vanguard missile explosion with enemy
+      if (bullet.isMissile) {
+        this.player.triggerMissileExplosion(bullet.x, bullet.y);
+        bullet.destroy();
+        return;
+      }
+      // Sparkling when bullet hits boss
       const ex = enemy.x;
       const ey = enemy.y;
       const sparkColor = bullet.tintTopLeft || 0xff00ff;
@@ -78,12 +85,17 @@ export class MainGame extends Phaser.Scene {
       bullet.destroy();
       if (enemy.active && !enemy.isDead) {
         enemy.takeDamage(10);
-        this.player.ultCharge = Math.min(this.player.ultCharge + 2, 100);
+        // Super charging + btn being active when bullet hits enemy
+        this.player.ultCharge = Math.min(
+          this.player.ultCharge + this.player.ultGainRate,
+          100,
+        );
         this.superBtn.updateCharge(this.player.ultCharge);
         if (this.player.ultCharge >= 100) {
           this.player.isUltReady = true;
           this.superBtn.setReady(true);
         }
+        // if enemy dies, show gold popup
         if (enemy.hp <= 0) {
           this.showGoldPopup(ex, ey, 10);
         }
