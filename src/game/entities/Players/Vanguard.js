@@ -19,34 +19,32 @@ export default class Vanguard extends BasePlayer {
   }
 
   fire(time) {
-    // Triple Straight Stream: High precision
-    const offsets = [-15, 0, 15];
-
-    offsets.forEach((xOff) => {
+    const muzzlePositions = [
+      { x: -15, y: -5 },
+      { x: 0, y: -47 },
+      { x: 15, y: -5 },
+    ];
+    muzzlePositions.forEach((pos) => {
+      // 1. Create the Bullet at the specific x and y
       const bullet = new Projectile(
         this.scene,
-        this.x + xOff,
-        this.y - 25,
+        this.x + pos.x,
+        this.y + pos.y,
         "energy_bullet",
         this,
       );
       this.scene.bullets.add(bullet);
-
       bullet.body.velocity.y = this.bulletVel;
-
-      // Visuals: Electric Blue/Cyan theme
+      // 2. Visuals
       bullet.setDisplaySize(8, 45);
       bullet.setTint(0x00ffff, 0xffffff, 0x00aaff, 0xffffff);
-
       this.addVanguardTrail(bullet);
+      // 3. Trigger Muzzle Flash at that EXACT same spot
+      this.triggerMuzzleFlash(pos.x, pos.y);
     });
-
-    // Single bright center flash
-    this.triggerMuzzleFlash(0);
   }
 
   addVanguardTrail(bullet) {
-    // Clean, "Digital" looking trail
     const emitter = this.scene.add.particles(0, 0, bullet.texture.key, {
       follow: bullet,
       scale: { start: 0.4, end: 0 },
@@ -56,24 +54,22 @@ export default class Vanguard extends BasePlayer {
       tint: 0x00ffff,
       frequency: 15,
     });
-
     bullet.once("destroy", () => {
       emitter.stop();
       this.scene.time.delayedCall(100, () => emitter.destroy());
     });
   }
 
-  triggerMuzzleFlash(xOff) {
+  triggerMuzzleFlash(xOff, yOff) {
     const flash = this.scene.add
-      .sprite(this.x + xOff, this.y - 30, "flash")
+      .sprite(this.x + xOff, this.y + yOff, "flash")
       .setDepth(11)
-      .setScale(1.2)
+      .setScale(1.0)
       .setBlendMode("ADD")
       .setTint(0x00ffff);
-
     this.scene.tweens.add({
       targets: flash,
-      scale: 1.5,
+      scale: 1.4,
       alpha: 0,
       duration: 50,
       onComplete: () => flash.destroy(),

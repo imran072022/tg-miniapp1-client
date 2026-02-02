@@ -31,4 +31,12 @@ export const SHIP_CONFIGS = [
     border: "border-yellow-500/80 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
     dps: 650,
   },
+  {
+    id: "storm_silver",
+    name: "Storm Silver",
+    rarity: "Legendary",
+    color: "text-yellow-500",
+    border: "border-yellow-500/80 shadow-[0_0_15px_rgba(234,179,8,0.3)]",
+    dps: 650,
+  },
 ];

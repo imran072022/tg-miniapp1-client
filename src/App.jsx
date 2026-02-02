@@ -29,12 +29,12 @@ function App() {
       <div className="flex flex-col h-screen w-full bg-slate-950 text-white overflow-hidden">
         <TopNav />
 
-        <main className="flex-grow relative overflow-hidden flex flex-col">
-          {/* PHASER LAYER */}
+        {/* This container will hold everything between Top and Bottom nav */}
+        <main className="flex-grow relative overflow-hidden">
+          {/* PHASER LAYER (Stays Absolute) */}
           {isFighting && (
             <div className="absolute inset-0 z-[60] bg-black">
               <PhaserGame />
-              {/* PAUSE TRIGGER */}
               <button
                 onClick={() => setShowPauseMenu(true)}
                 className="absolute top-4 right-4 bg-white/10 p-3 rounded-2xl backdrop-blur-md z-[70] active:scale-90 transition-transform"
@@ -47,15 +47,16 @@ function App() {
             </div>
           )}
 
-          {/* PAGE CONTENT */}
-          <div className="flex-grow relative z-10 h-full">
+          {/* PAGE CONTENT (This part scrolls internally) */}
+          <div className="h-full w-full overflow-hidden">
             {currentTab === "BATTLE" && <Battle />}
             {currentTab === "CARDS" && <Cards />}
             {currentTab === "SHOP" && <Shop />}
           </div>
-
-          {!isFighting && <BottomNav />}
         </main>
+
+        {/* BOTTOM NAV (Outside main, so it's always visible at the very bottom) */}
+        {!isFighting && <BottomNav />}
 
         {/* OVERLAYS */}
         {showPauseMenu && <PauseOverlay />}

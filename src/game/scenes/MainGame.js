@@ -10,8 +10,10 @@ import Titan from "../entities/Players/Titan";
 import Vanguard from "../entities/Players/Vanguard";
 import SwiftBird from "../entities/Players/SwiftBird";
 import CyberPulse808 from "../entities/Players/CyberPulse808";
+import StormSilver from "../entities/Players/StormSilver";
 // Super Button
 import SuperButton from "../abilities/SuperButton";
+import CollisionManager from "../Management/CollisionManager";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -40,9 +42,12 @@ export class MainGame extends Phaser.Scene {
       this.player = new SwiftBird(this, width / 2, height - 120);
     } else if (this.equippedCard === "cyber_pulse_808") {
       this.player = new CyberPulse808(this, width / 2, height - 120);
+    } else if (this.equippedCard === "storm_silver") {
+      this.player = new StormSilver(this, width / 2, height - 120);
     } else {
       this.player = new Vanguard(this, width / 2, height - 120);
     }
+    this.player.superBtn = this.superBtn;
   }
   createImpactSparks(x, y, color, isBoss = false) {
     const particleCount = isBoss ? 20 : 5; // Bosses get a bigger explosion
@@ -66,61 +71,6 @@ export class MainGame extends Phaser.Scene {
     if (isBoss) {
       this.cameras.main.shake(100, 0.008);
     }
-  }
-  setupCollisions() {
-    // Collision A: player bullets hit enemy
-    this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
-      // Vanguard missile explosion with enemy
-      if (bullet.isMissile) {
-        this.player.triggerMissileExplosion(bullet.x, bullet.y);
-        bullet.destroy();
-        return;
-      }
-      // Sparkling when bullet hits boss
-      const ex = enemy.x;
-      const ey = enemy.y;
-      const sparkColor = bullet.tintTopLeft || 0xff00ff;
-      const isBoss = enemy.maxHP > 1000 || enemy.isBoss;
-      this.createImpactSparks(bullet.x, bullet.y, sparkColor, isBoss);
-      bullet.destroy();
-      if (enemy.active && !enemy.isDead) {
-        enemy.takeDamage(10);
-        // Super charging + btn being active when bullet hits enemy
-        this.player.ultCharge = Math.min(
-          this.player.ultCharge + this.player.ultGainRate,
-          100,
-        );
-        this.superBtn.updateCharge(this.player.ultCharge);
-        if (this.player.ultCharge >= 100) {
-          this.player.isUltReady = true;
-          this.superBtn.setReady(true);
-        }
-        // if enemy dies, show gold popup
-        if (enemy.hp <= 0) {
-          this.showGoldPopup(ex, ey, 10);
-        }
-      }
-    });
-    // Collision B: Player vs Enemy (UPDATED)
-    this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
-      if (enemy.active && !enemy.isDead) {
-        const ex = enemy.x;
-        const ey = enemy.y;
-        enemy.die();
-        player.takeDamage(20);
-        this.showGoldPopup(ex, ey, 10);
-      }
-    });
-    // Collision C: Enemy Bullets vs Player (UPDATED)
-    this.physics.add.overlap(
-      this.player,
-      this.enemyBullets,
-      (player, bullet) => {
-        if (this.isGameOver) return;
-        bullet.destroy();
-        player.takeDamage(10);
-      },
-    );
   }
   setupTimers() {
     // Enemy Spawn Timer
@@ -147,6 +97,7 @@ export class MainGame extends Phaser.Scene {
   create() {
     this.isTouchingUI = false;
     const { width, height } = this.scale;
+
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
     this.bg = this.add
@@ -154,22 +105,31 @@ export class MainGame extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(-1);
 
-    // 2. Groups
+    // 2. Groups (Must be first)
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
-    // 3. Super Button
-    // Position the container at the bottom right
-    const x = this.scale.width - 80;
-    const y = this.scale.height - 80;
-    this.superBtn = new SuperButton(this, x, y);
-    // 4. System Initialization
+
+    // 3. UI (Create superBtn BEFORE player so player can reference it)
+    const btnX = this.scale.width - 80;
+    const btnY = this.scale.height - 80;
+    this.superBtn = new SuperButton(this, btnX, btnY);
+
+    // 4. Player (Must be before Collisions)
     this.setupPlayer();
+
+    // 5. Collisions (Must be AFTER Player and Groups are ready)
+    this.collisionManager = new CollisionManager(this);
+    this.collisionManager.init(
+      this.player,
+      this.enemies,
+      this.bullets,
+      this.enemyBullets,
+    );
+
+    // 6. Systems & HUD
     this.setupTimers();
-    this.setupCollisions();
-    // 5. UI / HUD
-    this.setupUI(); // You can move the goldText creation here too!
-    // 6. World Setup
+    this.setupUI();
     this.physics.world.setBounds(0, 0, width, height, true, true, false, false);
     this.physics.world.TILE_BIAS = 32;
   }
@@ -246,7 +206,7 @@ export class MainGame extends Phaser.Scene {
     } else if (this.currentLevel === 4) {
       this.boss = new EnergyCoreBoss(this, width / 2, -100);
     }
-    this.setupBossCollisions();
+    this.collisionManager.setupBossCollision(this.bullets, this.boss);
     // Listen for the boss death
     this.events.once("BOSS_DEFEATED", () => {
       this.handleBossVictory();
@@ -268,48 +228,7 @@ export class MainGame extends Phaser.Scene {
       });
     });
   }
-  // sparkle, damage text
-  setupBossCollisions() {
-    this.physics.add.overlap(this.bullets, this.boss, (boss, bullet) => {
-      const spark = this.add
-        .rectangle(bullet.x, bullet.y, 8, 8, boss.hitColor)
-        .setDepth(2000) // Ensure it's on top
-        .setRotation(Phaser.Math.Between(0, 360));
-      // 2. Make it "explode" and fade
-      this.tweens.add({
-        targets: spark,
-        scale: 2,
-        alpha: 0,
-        angle: 180,
-        duration: 150,
-        onComplete: () => spark.destroy(),
-      });
-      // 2. Create Floating Damage Text
-      const damageAmount = 10;
-      const damageText = this.add
-        .text(bullet.x, bullet.y, `-${damageAmount}`, {
-          fontSize: "20px",
-          fill: "#ffffff",
-          fontStyle: "bold",
-          stroke: "#000000",
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setDepth(200);
-      // Animate the damage text (float up and drift)
-      this.tweens.add({
-        targets: damageText,
-        y: bullet.y - 60,
-        x: bullet.x + Phaser.Math.Between(-25, 25),
-        alpha: 0,
-        duration: 800,
-        onComplete: () => damageText.destroy(),
-      });
-      // 3. Cleanup and Logic
-      bullet.destroy();
-      boss.takeDamage(damageAmount);
-    });
-  }
+
   triggerRedAlert() {
     // 1. Create a red rectangle covering the whole screen
     const alertOverlay = this.add
