@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import Enemy from "../entities/enemies/Enemy";
 //Bosses
 import GuardianBoss from "../entities/Boss/Level1Boss";
 import StormBoss from "../entities/Boss/Level2Boss";
@@ -14,6 +13,8 @@ import StormSilver from "../entities/Players/StormSilver";
 // Super Button
 import SuperButton from "../abilities/SuperButton";
 import CollisionManager from "../Management/CollisionManager";
+import { EnemyFactory } from "../entities/enemies/EnemyFactory/EnemyFactory";
+import WaveDirector from "../Management/WaveDirector";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -72,15 +73,6 @@ export class MainGame extends Phaser.Scene {
       this.cameras.main.shake(100, 0.008);
     }
   }
-  setupTimers() {
-    // Enemy Spawn Timer
-    this.spawnTimer = this.time.addEvent({
-      delay: 1000,
-      callback: this.spawnEnemy,
-      callbackScope: this,
-      loop: true,
-    });
-  }
   setupUI() {
     this.goldText = this.add
       .text(20, 20, `GOLD: ${this.gold}`, {
@@ -97,28 +89,26 @@ export class MainGame extends Phaser.Scene {
   create() {
     this.isTouchingUI = false;
     const { width, height } = this.scale;
-
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
     this.bg = this.add
       .tileSprite(0, 0, width, height, "nebula")
       .setOrigin(0, 0)
       .setDepth(-1);
-
     // 2. Groups (Must be first)
     this.bullets = this.physics.add.group();
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
-
     // 3. UI (Create superBtn BEFORE player so player can reference it)
     const btnX = this.scale.width - 80;
     const btnY = this.scale.height - 80;
     this.superBtn = new SuperButton(this, btnX, btnY);
-
     // 4. Player (Must be before Collisions)
     this.setupPlayer();
-
-    // 5. Collisions (Must be AFTER Player and Groups are ready)
+    // 5. Wave Director
+    this.waveDirector = new WaveDirector(this);
+    this.waveDirector.start();
+    // 6. Collisions (Must be AFTER Player and Groups are ready)
     this.collisionManager = new CollisionManager(this);
     this.collisionManager.init(
       this.player,
@@ -126,11 +116,11 @@ export class MainGame extends Phaser.Scene {
       this.bullets,
       this.enemyBullets,
     );
-
-    // 6. Systems & HUD
-    this.setupTimers();
+    // 7. Systems & HUD
     this.setupUI();
-    this.physics.world.setBounds(0, 0, width, height, true, true, false, false);
+    // Update this line in MainGame.js
+    // Ensure this is exactly like this:
+    this.physics.world.setBounds(0, 0, width, height, true, true, true, false);
     this.physics.world.TILE_BIAS = 32;
   }
   //
@@ -262,59 +252,11 @@ export class MainGame extends Phaser.Scene {
       this.game.events.emit("GAME_OVER", this.gold);
     }
   }
-  // NEW Step 4: Logic-based spawning
-  spawnEnemy() {
-    if (this.isGameOver || this.currentWave === "BOSS") return;
-
+  spawnEnemy(type = "Type1Enemy") {
     const x = Phaser.Math.Between(50, this.scale.width - 50);
-
-    // Wave Selection Logic
-    const isWave3 = this.gameTimer > 30000;
-    const isWave2 = this.gameTimer > 15000 && this.gameTimer <= 30000;
-
-    let type = "STRAIGHT";
-    let texture = "enemyType1";
-    let hp = 20;
-    let vSpeed = 200;
-
-    if (isWave3) {
-      type = "HELI";
-      texture = "helicopter";
-      hp = 100;
-      vSpeed = 100;
-    } else if (isWave2) {
-      type = "ZIGZAG";
-      texture = "enemyType2";
-      hp = 40;
-      vSpeed = 160;
-    }
-
-    // Apply Level Scaling
-    hp *= this.currentLevel;
-
-    const enemy = new Enemy(this, x, -20, texture, hp, type);
-    this.enemies.add(enemy);
-
-    if (enemy.body instanceof Phaser.Physics.Arcade.Body) {
-      enemy.body.setVelocityY(vSpeed);
-
-      // Restore your original Wave 2 Bounce logic
-      if (type === "ZIGZAG") {
-        const horizontalSpeed = 150;
-        const startRight = x < this.scale.width / 2;
-        enemy.body.setVelocityX(
-          startRight ? horizontalSpeed : -horizontalSpeed,
-        );
-        enemy.body.setBounce(1, 0);
-        enemy.body.setCollideWorldBounds(true);
-        enemy.setTint(0x00ff00);
-      }
-
-      // Superiority visual (Level 2+)
-      if (this.currentLevel > 1) {
-        enemy.setTint(0xff00ff);
-      }
-    }
+    const y = -50;
+    // The Factory handles the rest!
+    EnemyFactory.spawn(this, type, x, y);
   }
   // =========== Functions called inside update() =============
   updateEnemies(time) {
@@ -328,61 +270,6 @@ export class MainGame extends Phaser.Scene {
       }
     });
   }
-  checkGameTimeline(delta) {
-    if (this.isGameOver || this.currentWave === "BOSS") return;
-    this.gameTimer += delta;
-    // --- WAVE 1 to 2 GAP (at 15s) ---
-    if (this.currentWave === 1 && this.gameTimer > 15000) {
-      if (this.spawnTimer) this.spawnTimer.paused = true; // Stop spawning
-      this.startNextWave(2, 800); // This shows text and resumes after 2s
-    }
-    // --- WAVE 2 to 3 GAP (at 30s) ---
-    if (this.currentWave === 2 && this.gameTimer > 30000) {
-      if (this.spawnTimer) this.spawnTimer.paused = true;
-      this.startNextWave(3, 1200);
-    }
-    // --- BOSS PREP (at 45s) ---
-    if (this.currentWave === 3 && this.gameTimer > 45000) {
-      this.currentWave = "BOSS_PREP"; // Temporary state for the gap
-      // 1. Stop Spawning
-      if (this.spawnTimer) this.spawnTimer.remove();
-      // 2. Tell all current enemies to retreat
-      this.enemies.children.each((enemy) => {
-        enemy.retreat();
-      });
-      // 3. TRIGGER RED ALERT
-      this.triggerRedAlert();
-      // 4. Boss Warning Text
-      const warningText = this.add
-        .text(
-          this.scale.width / 2,
-          this.scale.height / 2,
-          "WARNING: BOSS DETECTED",
-          {
-            fontSize: "32px",
-            fill: "#ff0000",
-            fontWeight: "bold",
-            stroke: "#000000",
-            strokeThickness: 6,
-          },
-        )
-        .setOrigin(0.5)
-        .setDepth(200);
-      // Blink the text
-      this.tweens.add({
-        targets: warningText,
-        alpha: 0,
-        duration: 500,
-        yoyo: true,
-        repeat: 3,
-        onComplete: () => warningText.destroy(),
-      });
-      // 3. Wait 4 seconds for cleanup, then bring the Boss
-      this.time.delayedCall(4000, () => {
-        this.startBossWave();
-      });
-    }
-  }
   updateProjectiles() {
     this.bullets.getChildren().forEach((bullet) => {
       if (bullet.active) {
@@ -394,9 +281,6 @@ export class MainGame extends Phaser.Scene {
     if (this.isGameOver) return;
     // 1. Visuals
     this.bg.tilePositionY -= 0.2;
-    // 2. Systems
-    this.updateEnemies(time);
-    this.checkGameTimeline(delta);
     // 3. Tell Bullets to handle their particles/cleanup
     this.updateProjectiles();
     // 4. Tell Player to handle movement & firing
