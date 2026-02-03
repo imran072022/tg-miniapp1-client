@@ -1,12 +1,10 @@
 import Phaser from "phaser";
 import BasePlayer from "./BasePlayer";
-import Projectile from "../../abilities/Projectiles";
 
 export default class Vanguard extends BasePlayer {
   constructor(scene, x, y) {
     super(scene, x, y, "vanguard", {
-      // Your default ship sprite
-      hp: 600,
+      hp: 60000,
       fireRate: 200,
       bVel: -750,
       bScale: 0.5,
@@ -25,22 +23,26 @@ export default class Vanguard extends BasePlayer {
       { x: 15, y: -5 },
     ];
     muzzlePositions.forEach((pos) => {
-      // 1. Create the Bullet at the specific x and y
-      const bullet = new Projectile(
-        this.scene,
+      // FIXED: Use bullets.create instead of new Projectile
+      const bullet = this.scene.bullets.create(
         this.x + pos.x,
         this.y + pos.y,
-        "energy_bullet",
-        this,
+        "base-rounded-bullet",
       );
-      this.scene.bullets.add(bullet);
-      bullet.body.velocity.y = this.bulletVel;
-      // 2. Visuals
-      bullet.setDisplaySize(8, 45);
-      bullet.setTint(0x00ffff, 0xffffff, 0x00aaff, 0xffffff);
-      this.addVanguardTrail(bullet);
-      // 3. Trigger Muzzle Flash at that EXACT same spot
-      this.triggerMuzzleFlash(pos.x, pos.y);
+
+      if (bullet) {
+        // Re-adding essential physics settings previously in Projectile.js
+        bullet.body.allowGravity = false;
+        bullet.setDepth(5);
+
+        bullet.body.velocity.y = this.bulletVel;
+        // Visuals
+        bullet.setDisplaySize(8, 45);
+        bullet.setTint(0x00ffff, 0xffffff, 0x00aaff, 0xffffff);
+        this.addVanguardTrail(bullet);
+        // Trigger Muzzle Flash
+        this.triggerMuzzleFlash(pos.x, pos.y);
+      }
     });
   }
 
@@ -92,43 +94,50 @@ export default class Vanguard extends BasePlayer {
         // Re-scan for the nearest enemy for EACH missile launch
         const target = this.getNearestEnemy();
         if (target) this.createLockOn(target);
-        const missile = new Projectile(
-          this.scene,
+
+        // FIXED: Use bullets.create instead of new Projectile
+        const missile = this.scene.bullets.create(
           this.x + xOff,
           this.y,
-          "energy_bullet",
-          this,
+          "base-rounded-bullet",
         );
-        this.scene.bullets.add(missile);
-        missile.isMissile = true;
-        missile.setTint(0xcccccc);
-        missile.setDisplaySize(10, 30);
-        missile.body.setVelocityY(-150);
-        this.addRealMissileTrail(missile);
-        this.runMissileAI(missile, target);
+
+        if (missile) {
+          // Re-adding essential physics settings previously in Projectile.js
+          missile.body.allowGravity = false;
+          missile.setDepth(5);
+
+          missile.isMissile = true;
+          missile.setTint(0xcccccc);
+          missile.setDisplaySize(10, 30);
+          missile.body.setVelocityY(-150);
+          this.addRealMissileTrail(missile);
+          this.runMissileAI(missile, target);
+        }
       });
     });
 
     this.ultCharge = 0;
     this.isUltReady = false;
   }
+
   runMissileAI(missile, target) {
     let currentTarget = target; // Start with the assigned target
 
     this.scene.time.addEvent({
       delay: 16,
-      repeat: 240, // Increased duration to 4s to give it time to find new targets
+      repeat: 240, // Increased duration to 4s
       callback: () => {
         if (!missile.active) return;
 
         // 1. If current target is gone/dead, try to find a new one
         if (!currentTarget || !currentTarget.active || currentTarget.isDead) {
           currentTarget = this.getNearestEnemy();
-          if (currentTarget) this.createLockOn(currentTarget); // Show new lock-on
+          if (currentTarget) this.createLockOn(currentTarget);
         }
 
         if (missile.y < 50) {
-          if (currentTarget) currentTarget.missileCount--; // Target is safe from THIS missile
+          if (currentTarget) currentTarget.missileCount--;
           this.triggerMissileExplosion(missile.x, missile.y);
           missile.destroy();
           return;
@@ -156,16 +165,19 @@ export default class Vanguard extends BasePlayer {
             missile.body.velocity,
           );
         } else {
-          // No enemies left at all? Just cruise up
+          // No enemies left? Just cruise up
           missile.body.setVelocityY(-600);
         }
       },
     });
   }
+
   getNearestEnemy() {
-    const enemies = this.scene.enemies.getChildren().filter(
-      (e) => e.active && !e.isDead && e.y < this.scene.scale.height - 100, // Don't target enemies about to leave the bottom
-    );
+    const enemies = this.scene.enemies
+      .getChildren()
+      .filter(
+        (e) => e.active && !e.isDead && e.y < this.scene.scale.height - 100,
+      );
 
     if (enemies.length === 0) return null;
 
@@ -186,10 +198,10 @@ export default class Vanguard extends BasePlayer {
     });
     return closest;
   }
+
   updateMissile(missile, target) {
     if (!missile.active) return;
 
-    // 1. If we have a target, curve toward it
     if (target && target.active) {
       const angle = Phaser.Math.Angle.Between(
         missile.x,
@@ -197,39 +209,34 @@ export default class Vanguard extends BasePlayer {
         target.x,
         target.y,
       );
-      // Gradually rotate missile toward target (Homing effect)
       missile.rotation = Phaser.Math.Angle.RotateTo(
         missile.rotation,
         angle + Math.PI / 2,
         0.1,
       );
 
-      // Move in the direction of the rotation
       this.scene.physics.velocityFromRotation(
         missile.rotation - Math.PI / 2,
         800,
         missile.body.velocity,
       );
-    }
-    // 2. Airburst Logic: If missile gets too close to the top, explode!
-    else if (missile.y < 100) {
+    } else if (missile.y < 100) {
       this.triggerMissileExplosion(missile.x, missile.y);
       missile.destroy();
     }
   }
+
   addRealMissileTrail(missile) {
-    // 1. DENSE LINGERING SMOKE (Stays for 1.5s)
     const smoke = this.scene.add.particles(0, 0, "flash", {
       follow: missile,
-      scale: { start: 1.2, end: 0 }, // Wider smoke
+      scale: { start: 1.2, end: 0 },
       alpha: { start: 0.7, end: 0 },
-      lifespan: 1500, // Stay for 1.5 seconds
-      frequency: 10, // High density
+      lifespan: 1500,
+      frequency: 10,
       tint: 0x888888,
       blendMode: "NORMAL",
     });
 
-    // 2. ENGINE FIRE (Brighter)
     const fire = this.scene.add.particles(0, 0, "flash", {
       follow: missile,
       followOffset: { y: 20 },
@@ -253,25 +260,22 @@ export default class Vanguard extends BasePlayer {
 
   triggerMissileExplosion(x, y) {
     this.scene.cameras.main.shake(200, 0.01);
-
-    // 1. Create the Visual "Blast"
     const exp = this.scene.add
       .sprite(x, y, "flash")
-      .setTint(0xffaa00) // Orange-Yellow for visibility
+      .setTint(0xffaa00)
       .setAlpha(1)
       .setScale(0.1)
-      .setDepth(3000); // Ensure it is on top of everything
+      .setDepth(3000);
 
     this.scene.tweens.add({
       targets: exp,
-      scale: 6, // Made it much larger
-      alpha: 0, // Fade out
-      duration: 500, // Lasts exactly 0.5 seconds
+      scale: 6,
+      alpha: 0,
+      duration: 500,
       ease: "Cubic.easeOut",
       onComplete: () => exp.destroy(),
     });
 
-    // 2. Add an optional "Shockwave" ring
     const ring = this.scene.add.graphics();
     ring.lineStyle(4, 0xffffff, 0.5);
     ring.strokeCircle(x, y, 10);
@@ -284,19 +288,17 @@ export default class Vanguard extends BasePlayer {
       onComplete: () => ring.destroy(),
     });
   }
+
   createLockOn(target) {
     if (!target) return;
-    // If the enemy doesn't have a tracker yet, give it one
     if (target.missileCount === undefined) target.missileCount = 0;
     target.missileCount++;
 
-    // Only create the visual circle if it's the FIRST missile locking on
     if (target.lockGraphic) return;
 
     const lock = this.scene.add.graphics();
     lock.lineStyle(2, 0xff0000, 1);
     lock.strokeCircle(0, 0, 30);
-    // Draw crosshairs
     for (let i = 0; i < 4; i++) {
       const angle = Phaser.Math.DegToRad(i * 90);
       lock.lineBetween(
@@ -307,16 +309,12 @@ export default class Vanguard extends BasePlayer {
       );
     }
     lock.setDepth(2000);
-    target.lockGraphic = lock; // Attach the visual to the enemy object
+    target.lockGraphic = lock;
 
-    // Follow logic
     const updateEvent = this.scene.time.addEvent({
       delay: 16,
       loop: true,
       callback: () => {
-        // Destroy the circle if:
-        // 1. The enemy is dead/inactive
-        // 2. OR no more missiles are chasing it (missileCount <= 0)
         if (!target.active || target.isDead || target.missileCount <= 0) {
           if (target.lockGraphic) target.lockGraphic.destroy();
           target.lockGraphic = null;
@@ -325,7 +323,7 @@ export default class Vanguard extends BasePlayer {
         } else {
           target.lockGraphic.x = target.x;
           target.lockGraphic.y = target.y;
-          target.lockGraphic.angle += 1; // slow rotation
+          target.lockGraphic.angle += 1;
         }
       },
     });

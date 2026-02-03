@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import Projectile from "../../abilities/Projectiles";
 import BasePlayer from "./BasePlayer";
 
 export default class SwiftBird extends BasePlayer {
@@ -30,7 +29,7 @@ export default class SwiftBird extends BasePlayer {
 
   // Helper: Create Thruster Particles
   createThruster(scene, xOff, yOff) {
-    scene.add.particles(0, 0, "energy_bullet", {
+    scene.add.particles(0, 0, "base-rounded-bullet", {
       follow: this,
       followOffset: { x: xOff, y: yOff },
       speedY: { min: 120, max: 220 },
@@ -50,7 +49,7 @@ export default class SwiftBird extends BasePlayer {
     actualNozzles.forEach((nozzleX) => {
       // 1. Charge Effect
       const charge = this.scene.add
-        .sprite(this.x + nozzleX, this.y - 15, "energy_bullet")
+        .sprite(this.x + nozzleX, this.y - 15, "base-rounded-bullet")
         .setTint(0xffffff)
         .setBlendMode("ADD")
         .setScale(0.8);
@@ -65,20 +64,25 @@ export default class SwiftBird extends BasePlayer {
 
       // 2. Dual Bullets
       [-4, 4].forEach((subOff) => {
-        const bullet = new Projectile(
-          this.scene,
+        // FIXED: Use bullets.create instead of new Projectile
+        const bullet = this.scene.bullets.create(
           this.x + nozzleX + subOff,
           this.y - 10,
-          "energy_bullet",
-          this,
+          "base-rounded-bullet",
         );
-        this.scene.bullets.add(bullet);
-        bullet.body.velocity.y = this.bulletVel;
-        bullet
-          .setTint(0xffffff, 0xff00ff, 0xff00ff, 0xffffff)
-          .setBlendMode("ADD");
-        bullet.setScale(0.3, 2);
-        this.applyPinkGlow(bullet);
+
+        if (bullet) {
+          // Manually handle logic previously inside Projectile.js
+          bullet.body.allowGravity = false;
+          bullet.setDepth(5);
+
+          bullet.body.velocity.y = this.bulletVel;
+          bullet
+            .setTint(0xffffff, 0xff00ff, 0xff00ff, 0xffffff)
+            .setBlendMode("ADD");
+          bullet.setScale(0.3, 2);
+          this.applyPinkGlow(bullet);
+        }
       });
 
       this.triggerMuzzleFlash(nozzleX);
@@ -134,31 +138,26 @@ export default class SwiftBird extends BasePlayer {
     });
   }
 
-  // Updated takeDamage in SwiftBird.js
   takeDamage(amount) {
-    // 1. Call the BasePlayer logic to update the Top-Left bar and check for death
     super.takeDamage(amount);
 
-    // 2. Keep SwiftBird's unique visual effects
     this.setTint(0xffffff);
     this.scene.time.delayedCall(50, () => {
       if (this.active) this.setTint(0xffd9ff);
     });
 
-    // 3. Keep the smoking effect logic
     if (this.hp <= 240 && !this.isDamaged) {
       this.isDamaged = true;
       this.startDamageEffects();
     }
   }
 
-  // Updated preUpdate in SwiftBird.js
   preUpdate(time, delta) {
-    super.preUpdate(time, delta); // BasePlayer now handles updateHPBar()
+    super.preUpdate(time, delta);
   }
 
   startDamageEffects() {
-    this.damageEmitter = this.scene.add.particles(0, 0, "energy_bullet", {
+    this.damageEmitter = this.scene.add.particles(0, 0, "base-rounded-bullet", {
       follow: this,
       followOffset: { x: 0, y: 20 },
       scale: { start: 0.5, end: 1.2 },
@@ -174,7 +173,7 @@ export default class SwiftBird extends BasePlayer {
 
   die() {
     this.hpBar.clear();
-    this.body.enable = false;
+    if (this.body) this.body.enable = false;
     if (this.damageEmitter) this.damageEmitter.stop();
     this.scene.tweens.add({
       targets: this,

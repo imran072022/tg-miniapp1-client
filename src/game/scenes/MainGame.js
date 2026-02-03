@@ -50,11 +50,13 @@ export class MainGame extends Phaser.Scene {
     }
     this.player.superBtn = this.superBtn;
   }
+  // Inside MainGame.js -> createImpactSparks
   createImpactSparks(x, y, color, isBoss = false) {
-    const particleCount = isBoss ? 20 : 5; // Bosses get a bigger explosion
-    const scaleRange = isBoss ? { start: 0.6, end: 0 } : { start: 0.3, end: 0 };
-    const speedRange = isBoss ? 300 : 150;
-    const emitter = this.add.particles(x, y, "energy_bullet", {
+    const particleCount = isBoss ? 20 : 6; // Increased slightly
+    const scaleRange = isBoss ? { start: 1.0, end: 0 } : { start: 0.5, end: 0 }; // Bigger sparks
+    const speedRange = isBoss ? 300 : 200;
+
+    const emitter = this.add.particles(x, y, "base-rounded-bullet", {
       speed: { min: -speedRange, max: speedRange },
       angle: { min: 0, max: 360 },
       scale: scaleRange,
@@ -63,14 +65,17 @@ export class MainGame extends Phaser.Scene {
       blendMode: "ADD",
       tint: color,
       quantity: particleCount,
-      emitting: false, // Trigger once
+      emitting: false,
     });
+
+    // CRITICAL: Set depth higher than the enemy (which is at 10)
+    emitter.setDepth(50);
+
     emitter.explode();
-    // Auto-cleanup after half a second
     this.time.delayedCall(500, () => emitter.destroy());
-    // Big Screen Shake for Boss Hits
+
     if (isBoss) {
-      this.cameras.main.shake(100, 0.008);
+      this.cameras.main.shake(100, 0.012);
     }
   }
   setupUI() {
@@ -252,7 +257,7 @@ export class MainGame extends Phaser.Scene {
       this.game.events.emit("GAME_OVER", this.gold);
     }
   }
-  spawnEnemy(type = "Type1Enemy") {
+  spawnEnemy(type) {
     const x = Phaser.Math.Between(50, this.scale.width - 50);
     const y = -50;
     // The Factory handles the rest!
@@ -271,9 +276,27 @@ export class MainGame extends Phaser.Scene {
     });
   }
   updateProjectiles() {
+    // Cleanup Player Bullets
     this.bullets.getChildren().forEach((bullet) => {
-      if (bullet.active) {
+      if (
+        bullet.active &&
+        (bullet.y < -50 || bullet.y > this.scale.height + 50)
+      ) {
+        bullet.destroy();
+      } else if (bullet.active) {
         bullet.update();
+      }
+    });
+    // NEW: Cleanup Enemy Bullets (Crucial to prevent lag)
+    this.enemyBullets.getChildren().forEach((bullet) => {
+      // If bullet goes off any side of the screen, kill it
+      if (
+        bullet.y > this.scale.height + 50 ||
+        bullet.y < -100 ||
+        bullet.x < -100 ||
+        bullet.x > this.scale.width + 100
+      ) {
+        bullet.destroy();
       }
     });
   }

@@ -14,7 +14,7 @@ export default class SuperButton extends Phaser.GameObjects.Container {
 
     // 2. The Icon (A small missile or star icon)
     this.icon = scene.add
-      .image(0, 0, "energy_bullet")
+      .image(0, 0, "base-rounded-bullet")
       .setScale(0.8)
       .setAlpha(0.5);
 

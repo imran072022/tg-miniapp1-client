@@ -36,15 +36,29 @@ export default class BaseEnemy extends Phaser.GameObjects.Sprite {
     this.hpBar.fillRect(x, y, width * healthPercentage, height);
   }
 
+  // game/entities/enemies/BaseEnemy.js
+
   takeDamage(amount) {
     if (this.isDead) return;
     this.hp -= amount;
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0.5,
-      yoyo: true,
-      duration: 50,
+
+    // --- THE FIX ---
+    // 1. Flash pure white (0xffffff)
+    this.setTint(0xffffff);
+
+    // 2. Wait 60ms then restore the correct color
+    this.scene.time.delayedCall(60, () => {
+      if (this.active && !this.isDead) {
+        // If we defined a bodyColor (like Yellow or Blue), return to it.
+        // Otherwise, clear it to the original sprite texture.
+        if (this.bodyColor !== undefined) {
+          this.setTint(this.bodyColor);
+        } else {
+          this.clearTint();
+        }
+      }
     });
+
     this.updateHealthBar();
 
     if (this.hp <= 0) {
