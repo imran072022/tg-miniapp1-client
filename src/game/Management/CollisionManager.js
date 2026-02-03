@@ -41,33 +41,27 @@ export default class CollisionManager {
   handlePlayerBulletHit(bullet, enemy) {
     const player = this.scene.player;
     if (!bullet.active || !enemy.active) return;
-
     // Use the ENEMY's position so effects are always centered on the target
     const targetX = enemy.x;
     const targetY = enemy.y;
-
     // 1. Vanguard Missile Logic
     if (bullet.isMissile) {
       player.triggerMissileExplosion(targetX, targetY);
       bullet.destroy();
       return;
     }
-
     // 2. StormSilver / General Impact FX
     if (player.triggerImpactFX) {
       const hitColor = bullet.tintTopLeft || 0x00ffff;
       player.triggerImpactFX(targetX, targetY, hitColor);
     }
-
     // 3. Sparking Logic
     const sparkColor = bullet.tintTopLeft || 0xff00ff;
     const isBoss = enemy.maxHP > 1000 || enemy.isBoss;
     this.scene.createImpactSparks(targetX, targetY, sparkColor, isBoss);
-
     // 4. Damage & Super Charge Logic
     if (enemy.active && !enemy.isDead) {
       enemy.takeDamage(10);
-
       // If enemy dies, show gold popup at their last position
       if (enemy.hp <= 0) {
         this.scene.showGoldPopup(targetX, targetY, 10);
@@ -90,8 +84,19 @@ export default class CollisionManager {
     if (enemy.active && !enemy.isDead) {
       const ex = enemy.x;
       const ey = enemy.y;
+      // Check if it's the kamikaze drone to trigger a special effect
+      if (enemy.texture.key === "kamikazeDrone") {
+        this.scene.cameras.main.shake(200, 0.02);
+        // 2. Trigger the explosion effect you already have for projectiles
+        this.scene.createImpactSparks(ex, ey, 0xff0000, true);
+        // 3. Higher damage for the drone crash
+        player.takeDamage(30);
+      } else {
+        // Normal crash damage
+        player.takeDamage(20);
+      }
+
       enemy.die();
-      player.takeDamage(20);
       this.scene.showGoldPopup(ex, ey, 10);
     }
   }

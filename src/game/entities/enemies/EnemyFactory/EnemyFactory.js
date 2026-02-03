@@ -1,9 +1,12 @@
+import Phaser from "phaser";
+import KamikazeDrone from "../Types/KamikazeDrone";
 import Type1Enemy from "../Types/Type1";
 import Type2Enemy from "../Types/Type2Enemy"; // Import the new class
 
 export const EnemyTypes = {
   Type1: Type1Enemy,
   Type2: Type2Enemy,
+  kamikazeDrone: KamikazeDrone,
 };
 
 export class EnemyFactory {
@@ -11,9 +14,12 @@ export class EnemyFactory {
     const EnemyClass = EnemyTypes[type] || Type1Enemy;
     const enemy = new EnemyClass(scene, x, y);
     scene.enemies.add(enemy);
-
+    if (type === "kamikazeDrone") {
+      enemy.body.setVelocityY(Phaser.Math.Between(150, 250)); // Fast entry
+      enemy.body.setCollideWorldBounds(false);
+    }
     // Movement for Type 2 (Heavy) - Slow descent, no bounce
-    if (type === "Type2" || type === "Type2Enemy") {
+    else if (type === "Type2" || type === "Type2Enemy") {
       enemy.body.setVelocityY(40);
       enemy.body.setCollideWorldBounds(false);
     }

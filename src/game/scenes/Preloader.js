@@ -25,10 +25,10 @@ export class Preloader extends Phaser.Scene {
     // Enemy images
     this.load.image("enemyType1", "enemyType1.png");
     this.load.image("enemyType2", "enemyType2.png");
-
     this.load.image("flash", "muzzleFlash.png");
     this.load.image("Type2Enemy", "Enemy/Type2Enemy.png");
     this.load.image("enemy2", "Enemy/enemy2.png");
+    this.load.image("kamikazeDrone", "Enemy/kamikazeDrone.png");
   }
 
   createTextures() {
