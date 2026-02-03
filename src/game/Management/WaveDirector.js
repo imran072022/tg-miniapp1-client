@@ -1,3 +1,4 @@
+import Phaser from "phaser";
 import { Endless_Waves } from "../../config/WaveConfig";
 import { EnemyFactory } from "../entities/enemies/EnemyFactory/EnemyFactory";
 
@@ -59,13 +60,22 @@ export default class WaveDirector {
   }
 
   nextPhase() {
+    // We already defined 'wave' here
     const wave = Endless_Waves[this.currentWaveIndex];
     this.currentPhaseIndex++;
-
     if (this.currentPhaseIndex < wave.phases.length) {
       this.startPhase();
     } else {
-      this.loadWave(this.currentWaveIndex + 1);
+      console.log(`Wave ${wave.wave} Phases Finished.`);
+      // Use 'wave.bossKey' (not waveConfig)
+      if (wave && wave.bossKey) {
+        console.log(`Transitioning to Boss: ${wave.bossKey}`);
+        this.stop();
+        // Passing the key to your MainGame method
+        this.scene.startBossWave(wave.bossKey);
+      } else {
+        this.loadWave(this.currentWaveIndex + 1);
+      }
     }
   }
 
@@ -112,5 +122,9 @@ export default class WaveDirector {
         startY - gapY * 2,
       );
     });
+  }
+  stop() {
+    if (this.spawnTimer) this.spawnTimer.remove();
+    if (this.phaseTimer) this.phaseTimer.remove();
   }
 }

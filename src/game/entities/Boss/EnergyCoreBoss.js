@@ -3,7 +3,7 @@ import BaseBoss from "./BaseBoss.js";
 
 export default class EnergyCoreBoss extends BaseBoss {
   constructor(scene, x, y) {
-    super(scene, x, -250, "boss4", 4, 5000);
+    super(scene, x, -250, "boss4", 4, 500);
     this.setTint(0x00ffff);
     this.setScale(1.4);
     this.hpBarOffset = -120; // boss4 is taller (237px), so move bar up
@@ -555,18 +555,14 @@ export default class EnergyCoreBoss extends BaseBoss {
   die() {
     if (this.isDead) return;
     this.isDead = true;
-    if (this.lightningGraphics) {
-      this.lightningGraphics.destroy();
-    }
-    if (this.engineEmitters) {
-      this.engineEmitters.forEach((emitter) => {
-        emitter.stop();
-      });
-    }
-    if (this.chargeTween) {
-      this.chargeTween.stop();
-      this.chargeTween = null;
-    }
+
+    // 1. LOCK the scene reference immediately
+    const scene = this.scene;
+
+    // ... (Your existing cleanup: lightning, engineEmitters, tweens, timers) ...
+    if (this.lightningGraphics) this.lightningGraphics.destroy();
+    if (this.engineEmitters) this.engineEmitters.forEach((e) => e.stop());
+    if (this.chargeTween) this.chargeTween.stop();
     if (this.swarmEmitter) {
       this.swarmEmitter.destroy();
       this.swarmEmitter = null;
@@ -574,14 +570,12 @@ export default class EnergyCoreBoss extends BaseBoss {
     if (this.infernoTimer) this.infernoTimer.destroy();
     if (this.turretTimer) this.turretTimer.destroy();
     if (this.exhaustTimer) this.exhaustTimer.destroy();
-    // remove turrets by exploding
+
     const activeTurrets = [this.turretL, this.turretR];
     activeTurrets.forEach((t) => {
-      if (t && t.active) {
-        this.explodeTurret(t);
-      }
+      if (t && t.active) this.explodeTurret(t);
     });
-    // 2. Immediate Visual Shutdown
+
     if (this.body) this.body.enable = false;
     this.setTint(0x333333);
     if (this.coreBall) this.coreBall.setVisible(false);
@@ -590,8 +584,9 @@ export default class EnergyCoreBoss extends BaseBoss {
       this.hpBar.destroy();
       this.hpBar = null;
     }
-    // 3. The Death Animation with Safety Checks
-    this.scene.tweens.add({
+
+    // 2. The Death Animation
+    scene.tweens.add({
       targets: this,
       angle: { from: -3, to: 3 },
       x: this.x + 2,
@@ -599,15 +594,19 @@ export default class EnergyCoreBoss extends BaseBoss {
       duration: 80,
       repeat: 20,
       onUpdate: () => {
-        // THE FIX: Check if scene and add still exist
-        if (this.scene && this.scene.add) {
-          this.releaseDeathSmoke();
-        }
+        if (scene && scene.add) this.releaseDeathSmoke();
       },
       onComplete: () => {
-        // THE FIX: Check if scene and add still exist
-        if (this.scene && this.scene.add) {
+        // --- THE CRITICAL FIX ---
+        if (scene && scene.events) {
+          // 1. Show the explosion visuals
           this.finalCosmicExplosion();
+
+          // 2. TELL THE GAME THE BOSS IS DEFEATED
+          scene.events.emit("BOSS_DEFEATED");
+
+          // 3. NOW destroy the boss object
+          this.destroy();
         }
       },
     });
@@ -640,48 +639,43 @@ export default class EnergyCoreBoss extends BaseBoss {
   }
 
   finalCosmicExplosion() {
-    // 1. The "Aurora" Streaks (Geometric/Energy look)
+    const scene = this.scene;
+    if (!scene) return;
+
     const colors = [0x00ffff, 0xbf00ff, 0xffffff];
     for (let i = 0; i < 40; i++) {
       const color = Phaser.Math.RND.pick(colors);
-      const streak = this.scene.add.rectangle(this.x, this.y, 2, 100, color);
+      const streak = scene.add.rectangle(this.x, this.y, 2, 100, color);
       streak.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
       streak.setBlendMode("ADD");
-      this.scene.tweens.add({
+      scene.tweens.add({
         targets: streak,
         width: 20,
         height: 600,
         alpha: 0,
         duration: 1500,
         ease: "Expo.out",
-        // Inside finalCosmicExplosion's onComplete:
-        onComplete: () => {
-          streak.destroy();
-          // Tell the scene the boss is defeated so it can show "Level Complete"
-          if (this.scene && this.scene.onBossDefeated) {
-            this.scene.onBossDefeated();
-          }
-          this.destroy();
-        },
+        onComplete: () => streak.destroy(),
       });
     }
-    // 2. The "Big Smoke" (Modified to be more "Nebula" like)
-    this.scene.add
+
+    scene.add
       .particles(this.x, this.y, "fire_particle", {
         speed: { min: 50, max: 200 },
         scale: { start: 1, end: 5 },
         alpha: { start: 0.6, end: 0 },
         lifespan: 2500,
-        tint: [0x444444, 0x220044, 0x002244], // Mixes dark smoke with deep purple/blue
+        tint: [0x444444, 0x220044, 0x002244],
         quantity: 40,
         stopAfter: 40,
         blendMode: "NORMAL",
       })
       .setDepth(200);
-    // 3. Screen Effects
-    this.scene.cameras.main.flash(1000, 255, 255, 255);
-    this.scene.cameras.main.shake(500, 0.05);
-    this.destroy();
+
+    scene.cameras.main.flash(1000, 255, 255, 255);
+    scene.cameras.main.shake(500, 0.05);
+
+    // REMOVED this.destroy() from here! It's handled in die() now.
   }
   update(time, delta) {
     if (this.isDead) return;

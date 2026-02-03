@@ -3,7 +3,7 @@ import BasePlayer from "./BasePlayer";
 export default class Titan extends BasePlayer {
   constructor(scene, x, y) {
     super(scene, x, y, "spaceship1", {
-      hp: 1000,
+      hp: 10000,
       fireRate: 180,
       bVel: -800,
       bScale: 0.8,

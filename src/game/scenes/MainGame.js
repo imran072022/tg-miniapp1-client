@@ -155,75 +155,52 @@ export class MainGame extends Phaser.Scene {
       this.goldText.setText(`GOLD: ${this.gold}`);
     }
   }
-  startNextWave(waveNumber, newRate) {
-    this.currentWave = waveNumber;
-    // Safety check: ensure spawnTimer exists
-    if (this.spawnTimer) this.spawnTimer.paused = true;
-    const waveText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, `WAVE ${waveNumber}`, {
-        fontSize: "48px",
-        fill: "#ffffff",
-        fontWeight: "bold",
-        stroke: "#000000",
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(200);
-    // Animation for the text
-    this.tweens.add({
-      targets: waveText,
-      scale: { from: 0.8, to: 1.2 },
-      alpha: { from: 1, to: 0 },
-      duration: 2000,
-      onComplete: () => {
-        waveText.destroy();
-        // Resume spawning with new speed
-        this.spawnRate = newRate;
-        if (this.spawnTimer) {
-          this.spawnTimer.delay = newRate;
-          this.spawnTimer.paused = false;
-        }
-      },
-    });
-  }
 
-  startBossWave() {
+  startBossWave(bossKey) {
     this.currentWave = "BOSS";
     if (this.spawnTimer) this.spawnTimer.remove();
     const { width } = this.scale;
-    // --- MODULAR BOSS SELECTION ---
-    if (this.currentLevel === 1) {
-      this.boss = new GuardianBoss(this, width / 2, -100);
-    } else if (this.currentLevel === 2) {
-      this.boss = new StormBoss(this, width / 2, -100);
-    } else if (this.currentLevel === 3) {
-      this.boss = new PhantomBoss(this, width / 2, -100);
-    } else if (this.currentLevel === 4) {
-      this.boss = new EnergyCoreBoss(this, width / 2, -100);
+    switch (bossKey) {
+      case "GuardianBoss":
+        this.boss = new GuardianBoss(this, width / 2, -100);
+        break;
+      case "PhantomBoss":
+        this.boss = new PhantomBoss(this, width / 2, -100);
+        break;
+      case "EnergyCoreBoss":
+        this.boss = new EnergyCoreBoss(this, width / 2, -100);
+        break;
+      default:
+        // Fallback to your original level logic if no key is sent
+        console.warn(`No boss found for key: ${bossKey}. Skipping boss phase.`);
+        this.handleBossVictory(); // Immediately trigger victory to move to next wave
+        return;
     }
-    this.collisionManager.setupBossCollision(this.bullets, this.boss);
-    // Listen for the boss death
-    this.events.once("BOSS_DEFEATED", () => {
-      this.handleBossVictory();
-    });
-  }
-
-  handleBossVictory() {
-    this.time.delayedCall(3000, () => {
-      this.currentLevel++; // Increase difficulty multiplier
-      this.gameTimer = 0; // Reset clock to 0
-      this.currentWave = 1; // Go back to Wave 1 enemies
-      // Restart the wave spawning
-      this.startNextWave(1, 1000 / this.currentLevel);
-      this.spawnTimer = this.time.addEvent({
-        delay: 1000 / this.currentLevel,
-        callback: this.spawnEnemy,
-        callbackScope: this,
-        loop: true,
+    if (this.boss) {
+      this.collisionManager.setupBossCollision(this.bullets, this.boss);
+      // Listen for the boss death
+      this.events.once("BOSS_DEFEATED", () => {
+        this.handleBossVictory();
       });
+    }
+  }
+  handleBossVictory() {
+    console.log("Boss Defeated! Resuming Wave Director...");
+
+    // 1. Give the player 3 seconds to see the boss explode/collect loot
+    this.time.delayedCall(3000, () => {
+      // 2. Clear the boss reference so it's not targeted anymore
+      this.boss = null;
+      this.currentWave = "LEVEL"; // Reset state from "BOSS" back to "LEVEL"
+
+      // 3. IMPORTANT: Tell the WaveDirector to load the NEXT wave index
+      if (this.waveDirector) {
+        const nextIndex = this.waveDirector.currentWaveIndex + 1;
+        console.log("Loading Wave Index:", nextIndex);
+        this.waveDirector.loadWave(nextIndex);
+      }
     });
   }
-
   triggerRedAlert() {
     // 1. Create a red rectangle covering the whole screen
     const alertOverlay = this.add
