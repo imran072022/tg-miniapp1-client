@@ -15,6 +15,7 @@ import SuperButton from "../abilities/SuperButton";
 import CollisionManager from "../Management/CollisionManager";
 import { EnemyFactory } from "../entities/enemies/EnemyFactory/EnemyFactory";
 import WaveDirector from "../Management/WaveDirector";
+import UIHelper from "../Management/UIHelper";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -110,10 +111,12 @@ export class MainGame extends Phaser.Scene {
     this.superBtn = new SuperButton(this, btnX, btnY);
     // 4. Player (Must be before Collisions)
     this.setupPlayer();
-    // 5. Wave Director
+    // 5. Init uiHelper
+    this.uiHelper = new UIHelper(this);
+    // 6. Wave Director
     this.waveDirector = new WaveDirector(this);
     this.waveDirector.start();
-    // 6. Collisions (Must be AFTER Player and Groups are ready)
+    // 7. Collisions (Must be AFTER Player and Groups are ready)
     this.collisionManager = new CollisionManager(this);
     this.collisionManager.init(
       this.player,
@@ -121,7 +124,7 @@ export class MainGame extends Phaser.Scene {
       this.bullets,
       this.enemyBullets,
     );
-    // 7. Systems & HUD
+    // 8. Systems & HUD
     this.setupUI();
     // Update this line in MainGame.js
     // Ensure this is exactly like this:
@@ -186,13 +189,11 @@ export class MainGame extends Phaser.Scene {
   }
   handleBossVictory() {
     console.log("Boss Defeated! Resuming Wave Director...");
-
     // 1. Give the player 3 seconds to see the boss explode/collect loot
     this.time.delayedCall(3000, () => {
       // 2. Clear the boss reference so it's not targeted anymore
       this.boss = null;
       this.currentWave = "LEVEL"; // Reset state from "BOSS" back to "LEVEL"
-
       // 3. IMPORTANT: Tell the WaveDirector to load the NEXT wave index
       if (this.waveDirector) {
         const nextIndex = this.waveDirector.currentWaveIndex + 1;
@@ -202,7 +203,6 @@ export class MainGame extends Phaser.Scene {
     });
   }
   triggerRedAlert() {
-    // 1. Create a red rectangle covering the whole screen
     const alertOverlay = this.add
       .rectangle(0, 0, this.scale.width, this.scale.height, 0xff0000)
       .setOrigin(0, 0)
@@ -276,6 +276,9 @@ export class MainGame extends Phaser.Scene {
         bullet.destroy();
       }
     });
+  }
+  displayWaveMessage(waveNumber, waveName) {
+    this.uiHelper.showWaveBanner(`WAVE ${waveNumber}`, waveName.toUpperCase());
   }
   update(time, delta) {
     if (this.isGameOver) return;

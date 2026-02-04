@@ -21,10 +21,19 @@ export default class WaveDirector {
       if (this.scene.startBossWave) this.scene.startBossWave();
       return;
     }
-
     this.currentWaveIndex = index;
     this.currentPhaseIndex = 0;
-    this.startPhase();
+    const waveData = Endless_Waves[index];
+    // Trigger the banner!
+    // We use waveData.wave for the number and waveData.name (if you add one)
+    this.scene.displayWaveMessage(
+      waveData.wave,
+      waveData.description || "Get Ready",
+    );
+    // Start the enemies after a short delay so the player can read
+    this.scene.time.delayedCall(1000, () => {
+      this.startPhase();
+    });
   }
 
   startPhase() {

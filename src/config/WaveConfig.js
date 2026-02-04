@@ -1,6 +1,7 @@
 export const Endless_Waves = [
   {
-    wave: 1, // THE MOBILITY TEST
+    wave: 1,
+    description: "THE MOBILITY TEST",
     phases: [
       {
         name: "Scout Arrival",
@@ -26,7 +27,8 @@ export const Endless_Waves = [
     ],
   },
   {
-    wave: 2, // THE TRAJECTORY TEST
+    wave: 2,
+    description: "THE TRAJECTORY TEST",
     phases: [
       {
         name: "Traffic",
@@ -46,7 +48,8 @@ export const Endless_Waves = [
     ],
   },
   {
-    wave: 3, // THE FIREFIGHT (Final Test)
+    wave: 3,
+    description: "THE FIREFIGHT",
     phases: [
       {
         name: "Heavy Entrance",
@@ -67,7 +70,7 @@ export const Endless_Waves = [
     bossKey: "EnergyCoreBoss",
   },
   {
-    wave: 4, // THE MOBILITY TEST
+    wave: 4,
     phases: [
       {
         name: "Scout Arrival",
