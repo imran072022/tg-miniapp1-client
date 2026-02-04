@@ -9,12 +9,12 @@ export const GameProvider = ({ children }) => {
   const [gameMode, setGameMode] = useState(null); // "STORY" or "ENDLESS"
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [showResult, setShowResult] = useState(false);
-
   // --- ECONOMY & PLAYER STATE ---
   const [gold, setGold] = useState(500);
   const [equippedCard, setEquippedCard] = useState("STARTER");
-  const [lastScore, setLastScore] = useState(0);
-
+  const [goldCollected, setGoldCollected] = useState(0);
+  const [isVictory, setIsVictory] = useState(false);
+  const [starsEarned, setStarsEarned] = useState(0);
   // --- LEVEL PROGRESSION STATE ---
   // We initialize level progress based on our CampaignConfig
   const [selectedLevel, setSelectedLevel] = useState(null);
@@ -48,29 +48,43 @@ export const GameProvider = ({ children }) => {
   );
 
   const handleGameOver = useCallback(
-    (score = 0, isVictory = false) => {
-      setLastScore(score);
+    (gold = 0, victoryStatus = false, stats = null) => {
+      setGoldCollected(gold);
+      setIsVictory(victoryStatus);
       setShowResult(true);
 
-      // Only unlock the next level if the player actually won
-      if (isVictory && selectedLevel && gameMode === "STORY") {
-        setLevelProgress((prev) =>
-          prev.map((lvl) => {
-            // Mark current level as completed (3 stars for now)
-            if (lvl.id === selectedLevel.id) {
-              return { ...lvl, stars: 3 };
-            }
-            // Unlock the very next level in the sequence
-            if (lvl.id === selectedLevel.id + 1) {
-              return { ...lvl, unlocked: true };
-            }
-            return lvl;
-          }),
-        );
-      }
+      if (victoryStatus) {
+        // Calculate Stars based on HP percentage
+        let stars = 1;
+        if (stats) {
+          const hpPercent = (stats.hp / stats.maxHp) * 100;
+          if (hpPercent >= 80) stars = 3;
+          else if (hpPercent >= 40) stars = 2;
+        }
+        setStarsEarned(stars);
 
-      // Update total gold (example logic)
-      setGold((prev) => prev + score);
+        if (selectedLevel && gameMode === "STORY") {
+          setGold((prev) => prev + gold);
+          setLevelProgress((prev) => {
+            const currentLevelIndex = prev.findIndex(
+              (l) => l.id === selectedLevel.id,
+            );
+            if (currentLevelIndex !== -1) {
+              return prev.map((lvl, index) => {
+                if (index === currentLevelIndex) {
+                  // Update stars if current run was better
+                  return { ...lvl, stars: Math.max(lvl.stars || 0, stars) };
+                }
+                if (index === currentLevelIndex + 1) {
+                  return { ...lvl, unlocked: true };
+                }
+                return lvl;
+              });
+            }
+            return prev;
+          });
+        }
+      }
     },
     [selectedLevel, gameMode],
   );
@@ -93,12 +107,16 @@ export const GameProvider = ({ children }) => {
     setShowPauseMenu,
     showResult,
     setShowResult,
-    lastScore,
-    setLastScore,
+    goldCollected,
+    setGoldCollected,
     levelProgress, // Replaces old levelData
     isLevelUnlocked, // New helper
     isStageUnlocked,
     handleGameOver,
+    isVictory,
+    setIsVictory,
+    starsEarned,
+    setStarsEarned,
   };
 
   // Fixed syntax for React Context Provider

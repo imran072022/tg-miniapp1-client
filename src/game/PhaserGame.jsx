@@ -11,9 +11,9 @@ const PhaserGame = () => {
     if (!gameRef.current) {
       const config = getGameConfig("phaser-container");
       gameRef.current = new Phaser.Game(config);
-      gameRef.current.events.on("GAME_OVER", (finalGold) => {
-        console.log("Match Ended. Gold Collected:", finalGold);
-        handleGameOver(finalGold);
+      gameRef.current.events.on("GAME_OVER", (finalGold, isVictory, stats) => {
+        console.log("Match Ended. Gold:", finalGold, "Victory:", isVictory);
+        handleGameOver(finalGold, isVictory, stats);
       });
       gameRef.current.events.on("UPDATE_HP", (currentHp) => {
         console.log("Player HP Updated:", currentHp);

@@ -4,11 +4,11 @@ import TopNav from "./Components/TopNav";
 import PhaserGame from "./game/Phasergame";
 import BottomNav from "./Components/BottomNav";
 import PauseOverlay from "./Components/PauseOverlay";
-import ResultOverlay from "./Components/ResultOverlay";
 import { useGame } from "./hooks/useGame";
 import Battle from "./Pages/Battle/Battle";
 import Shop from "./Pages/Shop/Shop";
 import Cards from "./Pages/Cards/Cards";
+import VictoryOverlay from "./Components/VictoryOverlay";
 
 function App() {
   const {
@@ -17,6 +17,7 @@ function App() {
     showPauseMenu,
     setShowPauseMenu,
     showResult,
+    isVictory,
   } = useGame();
 
   return (
@@ -55,7 +56,7 @@ function App() {
 
         {/* OVERLAYS */}
         {showPauseMenu && <PauseOverlay />}
-        {showResult && <ResultOverlay />}
+        {showResult && isVictory && <VictoryOverlay />}
       </div>
     </Layout>
   );

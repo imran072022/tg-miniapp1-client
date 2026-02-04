@@ -4,7 +4,7 @@ import BasePlayer from "./BasePlayer";
 export default class Vanguard extends BasePlayer {
   constructor(scene, x, y) {
     super(scene, x, y, "vanguard", {
-      hp: 60000,
+      hp: 100,
       fireRate: 200,
       bVel: -750,
       bScale: 0.5,

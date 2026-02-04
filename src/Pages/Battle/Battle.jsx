@@ -160,7 +160,10 @@ const Battle = () => {
                   </h4>
                 </div>
                 <button
-                  onClick={() => setIsFighting(true)} // This triggers PhaserGame.jsx
+                  onClick={() => {
+                    setIsFighting(true);
+                    setGameMode("STORY");
+                  }}
                   className="bg-cyan-500 text-white font-black py-4 px-10 rounded-2xl text-lg shadow-lg active:scale-95 transition-all"
                 >
                   LAUNCH

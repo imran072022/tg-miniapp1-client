@@ -222,7 +222,10 @@ export class MainGame extends Phaser.Scene {
     // 3. Wait for the player to enjoy the win, then return to React
     this.time.delayedCall(3000, () => {
       // Send 'true' as the second argument to unlock the next level in GameProvider
-      this.game.events.emit("GAME_OVER", this.score, true);
+      this.game.events.emit("GAME_OVER", this.gold, true, {
+        hp: this.player.hp,
+        maxHp: this.player.maxHp,
+      });
     });
   }
   triggerRedAlert() {
