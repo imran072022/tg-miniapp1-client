@@ -1,10 +1,5 @@
 import React from "react";
 import Layout from "./Layout/Layout";
-
-// Pages
-
-// Components
-
 import TopNav from "./Components/TopNav";
 import PhaserGame from "./game/Phasergame";
 import BottomNav from "./Components/BottomNav";

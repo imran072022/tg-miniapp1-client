@@ -1,44 +1,23 @@
 import React from "react";
 import { useGame } from "../../hooks/useGame";
-
-// We keep the static configuration here to keep it out of the global state
-const STAGES = [
-  {
-    id: 1,
-    name: "NEBULA CORE",
-    bg: "/assets/stage1.jpg",
-    color: "text-cyan-400",
-  },
-  {
-    id: 2,
-    name: "SOLAR FLARE",
-    bg: "/assets/stage2.jpg",
-    color: "text-orange-400",
-  },
-  {
-    id: 3,
-    name: "VOID EDGE",
-    bg: "/assets/stage3.jpg",
-    color: "text-purple-400",
-  },
-];
+import { CAMPAIGN_DATA } from "../../config/CampaignConfig";
 
 const Battle = () => {
-  // Pull everything we need from our new Hook
   const {
     gameMode,
     setGameMode,
-    levelData,
     selectedLevel,
     setSelectedLevel,
     setIsFighting,
+    // We assume your hook handles "unlocked" state logic
+    isLevelUnlocked,
     isStageUnlocked,
   } = useGame();
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
       {!gameMode ? (
-        /* MODE SELECTION */
+        /* MODE SELECTION - The "Entry" buttons */
         <div className="h-full flex flex-col justify-center gap-6 p-6 animate-in fade-in zoom-in duration-300">
           <button
             onClick={() => setGameMode("STORY")}
@@ -60,7 +39,7 @@ const Battle = () => {
           <button
             onClick={() => {
               setGameMode("ENDLESS");
-              setIsFighting(true);
+              setIsFighting(true); // Endless starts immediately
             }}
             className="group bg-gradient-to-br from-purple-600 to-indigo-800 p-8 rounded-[32px] border-b-4 border-indigo-950 shadow-2xl active:scale-95 transition-all"
           >
@@ -91,22 +70,25 @@ const Battle = () => {
           </button>
 
           <div className="flex-grow overflow-y-scroll snap-y snap-mandatory scroll-smooth">
-            {STAGES.map((stage) => {
-              const unlocked = isStageUnlocked(stage.id);
+            {CAMPAIGN_DATA.map((stage) => {
+              // Logic check: Stage is unlocked if Level 1 of that stage is unlocked
+              const stageUnlocked = isStageUnlocked(stage.id);
+
               return (
                 <div
                   key={stage.id}
                   className="relative h-full w-full snap-start shrink-0 flex flex-col pt-20"
                 >
+                  {/* BACKGROUND LAYER */}
                   <div className="absolute inset-0 -z-10">
                     <img
                       src={stage.bg}
-                      alt=""
-                      className={`w-full h-full object-cover opacity-80 ${!unlocked ? "grayscale" : ""}`}
+                      className={`w-full h-full object-cover opacity-80 ${!stageUnlocked ? "grayscale" : ""}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-transparent to-slate-950" />
                   </div>
 
+                  {/* STAGE HEADER */}
                   <div className="text-center mb-8">
                     <h2
                       className={`${stage.color} font-black italic tracking-widest text-sm`}
@@ -118,38 +100,41 @@ const Battle = () => {
                     </p>
                   </div>
 
+                  {/* DYNAMIC LEVEL GRID */}
                   <div className="grid grid-cols-3 gap-y-10 gap-x-6 px-10 pb-40">
-                    {levelData
-                      .filter((l) => l.stage === stage.id)
-                      .map((level) => (
+                    {stage.levels.map((level) => {
+                      const unlocked = isLevelUnlocked(level.id);
+                      const isSelected = selectedLevel?.id === level.id;
+
+                      return (
                         <div
                           key={level.id}
                           className={`flex flex-col items-center ${level.isBoss ? "col-span-3 mt-4" : ""}`}
                         >
                           <button
-                            disabled={!unlocked || !level.unlocked}
+                            disabled={!unlocked}
                             onClick={() => setSelectedLevel(level)}
                             className={`w-16 h-16 rounded-[20px] border-b-4 flex items-center justify-center font-black transition-all relative
                             ${
-                              level.unlocked && unlocked
-                                ? selectedLevel?.id === level.id
+                              unlocked
+                                ? isSelected
                                   ? "bg-yellow-400 border-yellow-600 text-slate-900 scale-110 shadow-[0_0_20px_rgba(234,179,8,0.5)]"
                                   : "bg-slate-800 border-slate-950 text-white"
                                 : "bg-black/40 border-slate-900 text-slate-700"
                             }`}
                           >
                             {level.isBoss ? "BOSS" : level.id}
-                            {level.unlocked &&
-                              unlocked &&
-                              selectedLevel?.id !== level.id && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-500 rounded-full animate-pulse" />
-                              )}
+                            {unlocked && !isSelected && (
+                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-500 rounded-full animate-pulse" />
+                            )}
                           </button>
                         </div>
-                      ))}
+                      );
+                    })}
                   </div>
 
-                  {!unlocked && (
+                  {/* LOCK OVERLAY */}
+                  {!stageUnlocked && (
                     <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-40 flex flex-col items-center justify-center">
                       <span className="text-5xl mb-4">🔒</span>
                       <p className="font-black text-white/40 tracking-widest uppercase text-sm">
@@ -162,7 +147,7 @@ const Battle = () => {
             })}
           </div>
 
-          {/* LAUNCH PANEL */}
+          {/* LAUNCH PANEL (Passes level data to Game) */}
           {selectedLevel && (
             <div className="absolute bottom-6 left-6 right-6 bg-slate-900/95 backdrop-blur-xl border border-white/10 p-5 rounded-[32px] shadow-2xl z-50 animate-in slide-in-from-bottom-10">
               <div className="flex justify-between items-center">
@@ -171,11 +156,11 @@ const Battle = () => {
                     Level {selectedLevel.id}
                   </p>
                   <h4 className="text-white font-black text-xl italic leading-none">
-                    READY
+                    {selectedLevel.isBoss ? "FINAL CHALLENGE" : "MISSION READY"}
                   </h4>
                 </div>
                 <button
-                  onClick={() => setIsFighting(true)}
+                  onClick={() => setIsFighting(true)} // This triggers PhaserGame.jsx
                   className="bg-cyan-500 text-white font-black py-4 px-10 rounded-2xl text-lg shadow-lg active:scale-95 transition-all"
                 >
                   LAUNCH

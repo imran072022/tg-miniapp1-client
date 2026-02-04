@@ -1,57 +1,81 @@
 import React, { useState, useCallback } from "react";
 import { GameContext } from "./GameContext";
+import { CAMPAIGN_DATA } from "../config/CampaignConfig";
 
 export const GameProvider = ({ children }) => {
-  // --- RESTORING ALL ORIGINAL STATE ---
+  // --- NAVIGATION & UI STATE ---
   const [currentTab, setCurrentTab] = useState("BATTLE");
   const [isFighting, setIsFighting] = useState(false);
-  const [gold, setGold] = useState(500);
-  const [equippedCard, setEquippedCard] = useState("STARTER");
-  const [selectedLevel, setSelectedLevel] = useState(null);
-  const [gameMode, setGameMode] = useState(null);
+  const [gameMode, setGameMode] = useState(null); // "STORY" or "ENDLESS"
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [showResult, setShowResult] = useState(false);
+
+  // --- ECONOMY & PLAYER STATE ---
+  const [gold, setGold] = useState(500);
+  const [equippedCard, setEquippedCard] = useState("STARTER");
   const [lastScore, setLastScore] = useState(0);
 
-  const [levelData, setLevelData] = useState(() =>
-    Array.from({ length: 30 }, (_, i) => ({
-      id: i + 1,
-      stage: Math.floor(i / 10) + 1,
-      unlocked: i === 0,
+  // --- LEVEL PROGRESSION STATE ---
+  // We initialize level progress based on our CampaignConfig
+  const [selectedLevel, setSelectedLevel] = useState(null);
+  const [levelProgress, setLevelProgress] = useState(() => {
+    // Flatten all levels from all sectors to track their status
+    const allLevels = CAMPAIGN_DATA.flatMap((sector) => sector.levels);
+    return allLevels.map((lvl, index) => ({
+      id: lvl.id,
+      unlocked: index === 0, // Level 1 is unlocked by default
       stars: 0,
-      isBoss: (i + 1) % 10 === 0,
-    })),
+    }));
+  });
+
+  // --- HELPER METHODS ---
+
+  const isLevelUnlocked = useCallback(
+    (levelId) => {
+      return levelProgress.find((l) => l.id === levelId)?.unlocked;
+    },
+    [levelProgress],
   );
 
-  // --- LOGIC METHODS ---
   const isStageUnlocked = useCallback(
     (stageId) => {
-      if (stageId === 1) return true;
-      return levelData.find((l) => l.stage === stageId)?.unlocked;
+      const stage = CAMPAIGN_DATA.find((s) => s.id === stageId);
+      if (!stage || !stage.levels.length) return false;
+      // Stage is considered unlocked if its first level is unlocked
+      return isLevelUnlocked(stage.levels[0].id);
     },
-    [levelData],
+    [isLevelUnlocked],
   );
 
   const handleGameOver = useCallback(
-    (score = 0) => {
+    (score = 0, isVictory = false) => {
       setLastScore(score);
       setShowResult(true);
 
-      if (selectedLevel) {
-        setLevelData((prev) =>
+      // Only unlock the next level if the player actually won
+      if (isVictory && selectedLevel && gameMode === "STORY") {
+        setLevelProgress((prev) =>
           prev.map((lvl) => {
-            if (lvl.id === selectedLevel.id) return { ...lvl, stars: 3 };
-            if (lvl.id === selectedLevel.id + 1)
+            // Mark current level as completed (3 stars for now)
+            if (lvl.id === selectedLevel.id) {
+              return { ...lvl, stars: 3 };
+            }
+            // Unlock the very next level in the sequence
+            if (lvl.id === selectedLevel.id + 1) {
               return { ...lvl, unlocked: true };
+            }
             return lvl;
           }),
         );
       }
+
+      // Update total gold (example logic)
+      setGold((prev) => prev + score);
     },
-    [selectedLevel],
+    [selectedLevel, gameMode],
   );
 
-  // Providing everything back to the game
+  // --- CONTEXT VALUE ---
   const value = {
     currentTab,
     setCurrentTab,
@@ -71,10 +95,12 @@ export const GameProvider = ({ children }) => {
     setShowResult,
     lastScore,
     setLastScore,
-    levelData,
+    levelProgress, // Replaces old levelData
+    isLevelUnlocked, // New helper
     isStageUnlocked,
     handleGameOver,
   };
 
+  // Fixed syntax for React Context Provider
   return <GameContext value={value}>{children}</GameContext>;
 };

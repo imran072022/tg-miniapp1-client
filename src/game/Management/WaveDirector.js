@@ -12,9 +12,25 @@ export default class WaveDirector {
   }
 
   start() {
-    this.loadWave(0);
-  }
+    const level = this.scene.levelData;
 
+    if (this.scene.mode === "story" && level) {
+      console.log(`Starting Campaign Level: ${level.id}`);
+
+      if (level.type === "BOSS") {
+        // Level 4/6 logic: Jump straight to boss
+        this.scene.startBossWave(level.bossKey);
+      } else {
+        // Level 1/2/3/5 logic: Follow the wave sequence
+        this.campaignSequence = level.waves; // e.g., [0, 1]
+        this.sequenceIndex = 0;
+        this.loadWave(this.campaignSequence[this.sequenceIndex]);
+      }
+    } else {
+      console.log("Starting Endless Mode");
+      this.loadWave(0);
+    }
+  }
   loadWave(index) {
     if (index >= Endless_Waves.length) {
       console.log("WAVES EXHAUSTED - TRIGGERING BOSS");
@@ -69,25 +85,45 @@ export default class WaveDirector {
   }
 
   nextPhase() {
-    // We already defined 'wave' here
     const wave = Endless_Waves[this.currentWaveIndex];
     this.currentPhaseIndex++;
+
     if (this.currentPhaseIndex < wave.phases.length) {
       this.startPhase();
     } else {
       console.log(`Wave ${wave.wave} Phases Finished.`);
-      // Use 'wave.bossKey' (not waveConfig)
+
+      // 1. Check for Boss in current wave
       if (wave && wave.bossKey) {
         console.log(`Transitioning to Boss: ${wave.bossKey}`);
         this.stop();
-        // Passing the key to your MainGame method
         this.scene.startBossWave(wave.bossKey);
       } else {
-        this.loadWave(this.currentWaveIndex + 1);
+        // 2. CRITICAL FIX: Call nextWave() instead of loadWave directly
+        // nextWave contains the logic to check if campaign is over!
+        this.nextWave();
       }
     }
   }
+  nextWave() {
+    if (this.scene.mode === "story" && this.campaignSequence) {
+      this.sequenceIndex++;
 
+      if (this.sequenceIndex < this.campaignSequence.length) {
+        // Play the next wave in the sequence
+        const nextWaveId = this.campaignSequence[this.sequenceIndex];
+        this.loadWave(nextWaveId);
+      } else {
+        // NO MORE WAVES -> Level Clear!
+        console.log("Campaign Level Waves Exhausted. Victory!");
+        this.scene.handleLevelVictory();
+      }
+    } else {
+      // Standard Endless: Just keep counting up
+      this.currentWaveIndex++;
+      this.loadWave(this.currentWaveIndex);
+    }
+  }
   executePattern(type, pattern) {
     const width = this.scene.scale.width;
     const centerX = Phaser.Math.Between(width * 0.2, width * 0.8);

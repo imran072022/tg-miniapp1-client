@@ -24,15 +24,16 @@ export class MainGame extends Phaser.Scene {
   // DATA passed from PhaserGame.jsx via scene.start()
   // ============ Initialization (1) =============
   init(data) {
-    console.log("Phaser received card:", data.equippedCard);
+    console.log("Phaser received data:", data);
+    // Logic fix: Ensure we know if we are in Story mode
+    // If selectedLevel exists, we are in campaign
+    this.mode = data.selectedLevel ? "story" : "endless";
+    // This is the critical piece the WaveDirector needs!
+    this.levelData = data.selectedLevel || null;
     this.equippedCard = data.equippedCard || "STARTER";
-    this.selectedLevel = data.selectedLevel || 1;
     this.gold = 0;
     this.isGameOver = false;
-    this.gameTimer = 0;
-    this.currentWave = 1;
-    this.spawnRate = 1000;
-    this.currentLevel = 1; // Tracks how many cycles we've completed
+    this.score = 0; // Use 'score' for gold collected in-run
   }
   // ============ Functions called inside create() =============
   setupPlayer() {
@@ -188,18 +189,40 @@ export class MainGame extends Phaser.Scene {
     }
   }
   handleBossVictory() {
-    console.log("Boss Defeated! Resuming Wave Director...");
-    // 1. Give the player 3 seconds to see the boss explode/collect loot
+    console.log("Boss Defeated!");
+    const isStoryMode = this.mode === "story";
+    this.boss = null;
+    this.currentWave = "LEVEL";
+
+    if (isStoryMode) {
+      console.log("Story Level Complete!");
+      if (this.player) this.player.setInvulnerable(true);
+      this.time.delayedCall(3000, () => {
+        this.game.events.emit("GAME_OVER", this.score, true); // true = Victory
+      });
+    } else {
+      // --- ENDLESS CONTINUATION ---
+      console.log("Endless Boss Defeated! Resuming waves...");
+      this.time.delayedCall(3000, () => {
+        if (this.waveDirector) {
+          const nextIndex = this.waveDirector.currentWaveIndex + 1;
+          this.waveDirector.loadWave(nextIndex);
+        }
+      });
+    }
+  }
+
+  handleLevelVictory() {
+    // 1. Show a banner
+    if (this.uiHelper) {
+      this.uiHelper.showWaveBanner("MISSION CLEAR", "SECTOR SECURED", 0x00ff00);
+    }
+    // 2. Stop spawning
+    if (this.waveDirector) this.waveDirector.stop();
+    // 3. Wait for the player to enjoy the win, then return to React
     this.time.delayedCall(3000, () => {
-      // 2. Clear the boss reference so it's not targeted anymore
-      this.boss = null;
-      this.currentWave = "LEVEL"; // Reset state from "BOSS" back to "LEVEL"
-      // 3. IMPORTANT: Tell the WaveDirector to load the NEXT wave index
-      if (this.waveDirector) {
-        const nextIndex = this.waveDirector.currentWaveIndex + 1;
-        console.log("Loading Wave Index:", nextIndex);
-        this.waveDirector.loadWave(nextIndex);
-      }
+      // Send 'true' as the second argument to unlock the next level in GameProvider
+      this.game.events.emit("GAME_OVER", this.score, true);
     });
   }
   triggerRedAlert() {
