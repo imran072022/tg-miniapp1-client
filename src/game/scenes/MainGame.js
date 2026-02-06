@@ -257,7 +257,10 @@ export class MainGame extends Phaser.Scene {
     if (this.player.hp <= 0) {
       this.isGameOver = true;
       this.physics.pause();
-      this.game.events.emit("GAME_OVER", this.gold);
+      this.game.events.emit("GAME_OVER", this.gold, false, {
+        hp: 0,
+        maxHp: this.player.maxHp,
+      });
     }
   }
   spawnEnemy(type) {

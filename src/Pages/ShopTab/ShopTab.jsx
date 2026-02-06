@@ -1,7 +1,7 @@
 import React from "react";
 import { useGame } from "../../hooks/useGame";
 
-const Shop = () => {
+const ShopTab = () => {
   const { gold, setGold } = useGame();
 
   // This is a sample function to show how the shop will work later
@@ -53,4 +53,4 @@ const Shop = () => {
   );
 };
 
-export default Shop;
+export default ShopTab;
