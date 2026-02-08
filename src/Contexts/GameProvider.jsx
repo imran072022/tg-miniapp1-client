@@ -170,7 +170,7 @@ export const GameProvider = ({ children }) => {
 
         setDiamonds((prev) => prev - gemTotal);
         // If using gems, we assume gold is "covered" or deducted to 0 if partial
-        setGold((prev) => Math.max(0, prev - cost));
+        setGold((prev) => (missingGold > 0 ? 0 : prev - cost));
       } else {
         // Manual upgrade checks
         if (gold < cost) return alert("Not enough Gold!");
@@ -192,22 +192,28 @@ export const GameProvider = ({ children }) => {
       }
 
       // 3. Update the Ships and Resources
+      if (isEvoGate) {
+        setResources((prev) => ({
+          ...prev,
+          // Use Math.max(0, ...) to ensure we don't go negative,
+          // and correctly subtract only the requirement.
+          hullScraps: Math.max(0, prev.hullScraps - reqShards),
+          weaponTech: Math.max(0, prev.weaponTech - reqShards),
+          thrusterParts: Math.max(0, prev.thrusterParts - reqShards),
+          logicChips: Math.max(0, prev.logicChips - reqShards),
+        }));
+      }
+
+      // 4. Update the Ships
       setPlayerShips((prevShips) => {
         return prevShips.map((s) => {
           if (s.id !== shipId) return s;
 
           if (isEvoGate) {
-            // Deduct Shards (if useGems is true, we floor them to 0 or reqShards)
-            setResources((prev) => ({
-              ...prev,
-              hullScraps: Math.max(0, prev.hullScraps - reqShards),
-              weaponTech: Math.max(0, prev.weaponTech - reqShards),
-              thrusterParts: Math.max(0, prev.thrusterParts - reqShards),
-              logicChips: Math.max(0, prev.logicChips - reqShards),
-            }));
-
+            // Rank up logic
             return { ...s, rank: (s.rank || 0) + 1 };
           } else {
+            // Level up logic
             return {
               ...s,
               level: s.level + 1,
