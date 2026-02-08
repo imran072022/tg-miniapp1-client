@@ -25,8 +25,8 @@ export const GameProvider = ({ children }) => {
   ]);
   // Inventory Items
   const [resources, setResources] = useState({
-    hullScraps: 12,
-    weaponTech: 5,
+    hullScraps: 1,
+    weaponTech: 0,
     thrusterParts: 8,
     logicChips: 5,
   });
@@ -36,7 +36,7 @@ export const GameProvider = ({ children }) => {
     return SHIP_CONFIGS.map((ship) => ({
       ...ship,
       level: 1,
-      cards: 500,
+      cards: 70,
     }));
   });
   const openChest = useCallback((slotId) => {
@@ -125,61 +125,102 @@ export const GameProvider = ({ children }) => {
   );
   const upgradeShip = useCallback(
     (shipId, useGems = false) => {
-      // 1. Find the target ship first to get its CURRENT data
       const shipIndex = playerShips.findIndex((s) => s.id === shipId);
       if (shipIndex === -1) return;
+
       const ship = playerShips[shipIndex];
       const currentLevel = ship.level || 1;
+      const currentRank = ship.rank || 0;
       const rarity = ship.rarity;
-      const cost = LevelConfig.getUpgradeCost(currentLevel, rarity);
-      const isEvolution = LevelConfig.isEvolutionLevel(currentLevel);
-      const reqCards = LevelConfig.getRequiredCards(currentLevel);
-      // 2. DEDUCT CURRENCY ONCE (Outside the map loop)
+
+      const isEvoGate = LevelConfig.isEvolutionGate(currentLevel, currentRank);
+      const cost = LevelConfig.getUpgradeCost(
+        currentLevel,
+        currentRank,
+        rarity,
+      );
+      const reqCards = LevelConfig.getRequiredCards(currentLevel, currentRank);
+      const reqShards = LevelConfig.getRequiredShards(currentLevel, rarity);
+
+      // 1. Calculate Missing Resources
+      const missingGold = Math.max(0, cost - gold);
+      const missingCards = isEvoGate
+        ? 0
+        : Math.max(0, reqCards - (ship.cards || 0));
+
+      // Calculate Shard Scarcity
+      let missingShardsTotal = 0;
+      if (isEvoGate) {
+        missingShardsTotal += Math.max(0, reqShards - resources.hullScraps);
+        missingShardsTotal += Math.max(0, reqShards - resources.weaponTech);
+        missingShardsTotal += Math.max(0, reqShards - resources.thrusterParts);
+        missingShardsTotal += Math.max(0, reqShards - resources.logicChips);
+      }
+
+      // 2. Handle Purchase Logic
       if (useGems) {
-        const missingGold = Math.max(0, cost - gold);
-        const missingCards = isEvolution
-          ? 0
-          : Math.max(0, reqCards - ship.cards);
         const gemTotal = calculateMissingGemCost(
           missingCards,
           rarity,
           missingGold,
+          missingShardsTotal,
         );
+
         if (diamonds < gemTotal) return alert("Not enough Diamonds!");
+
         setDiamonds((prev) => prev - gemTotal);
-        // When using gems, we consume whatever gold was left
+        // If using gems, we assume gold is "covered" or deducted to 0 if partial
         setGold((prev) => Math.max(0, prev - cost));
       } else {
+        // Manual upgrade checks
         if (gold < cost) return alert("Not enough Gold!");
-        setGold((prev) => prev - cost); // SUBTRACT GOLD ONCE HERE
+        if (!isEvoGate && ship.cards < reqCards)
+          return alert("Not enough Cards!");
+
+        if (isEvoGate) {
+          if (
+            resources.hullScraps < reqShards ||
+            resources.weaponTech < reqShards ||
+            resources.thrusterParts < reqShards ||
+            resources.logicChips < reqShards
+          ) {
+            return alert("Not enough Shards for Evolution!");
+          }
+        }
+
+        setGold((prev) => prev - cost);
       }
-      // 3. UPDATE THE SHIPS ARRAY
+
+      // 3. Update the Ships and Resources
       setPlayerShips((prevShips) => {
         return prevShips.map((s) => {
-          if (s.id === shipId) {
-            // Handle Shards for Evolution
-            if (isEvolution) {
-              const reqShards = LevelConfig.getRequiredShards(currentLevel);
-              setResources((prev) => ({
-                hullScraps: prev.hullScraps - reqShards,
-                weaponTech: prev.weaponTech - reqShards,
-                thrusterParts: prev.thrusterParts - reqShards,
-                logicChips: prev.logicChips - reqShards,
-              }));
-            }
-            // RETURN UPDATED SHIP DATA
+          if (s.id !== shipId) return s;
+
+          if (isEvoGate) {
+            // Deduct Shards (if useGems is true, we floor them to 0 or reqShards)
+            setResources((prev) => ({
+              ...prev,
+              hullScraps: Math.max(0, prev.hullScraps - reqShards),
+              weaponTech: Math.max(0, prev.weaponTech - reqShards),
+              thrusterParts: Math.max(0, prev.thrusterParts - reqShards),
+              logicChips: Math.max(0, prev.logicChips - reqShards),
+            }));
+
+            return { ...s, rank: (s.rank || 0) + 1 };
+          } else {
             return {
               ...s,
-              level: currentLevel + 1, // This MUST increase for the UI to update
-              cards: isEvolution ? s.cards : useGems ? 0 : s.cards - reqCards,
+              level: s.level + 1,
+              cards: useGems
+                ? Math.max(0, s.cards - (reqCards - missingCards))
+                : s.cards - reqCards,
             };
           }
-          return s;
         });
       });
     },
-    [gold, diamonds, playerShips],
-  ); // Dependencies are vital here!
+    [gold, diamonds, resources, playerShips],
+  );
   // --- CONTEXT VALUE ---
   const value = {
     currentTab,

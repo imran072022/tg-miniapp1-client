@@ -14,13 +14,14 @@ import { LevelConfig } from "../../../config/LevelConfig";
 const FusionInterface = ({ ship, resources, goldBalance, onUpgradeClick }) => {
   // 1. Extract dynamic data from the ship object
   const level = ship?.level || 1;
+  const rank = ship?.rank || 0; // NEW: Get the ship's rank
   const rarity = ship?.rarity || "COMMON";
   const currentCards = ship?.cards || 0;
 
-  // 1.1 Dynamic Logic from LevelConfig
-  const isEvolutionLevel = LevelConfig.isEvolutionLevel(level);
-  const upgradeCost = LevelConfig.getUpgradeCost(level, rarity);
-  const requiredCards = LevelConfig.getRequiredCards(level);
+  // 1.1 Updated Logic to use the Rank-based Gate
+  const isEvolutionLevel = LevelConfig.isEvolutionGate(level, rank);
+  const upgradeCost = LevelConfig.getUpgradeCost(level, rank, rarity);
+  const requiredCards = LevelConfig.getRequiredCards(level, rank);
   const requiredShards = LevelConfig.getRequiredShards(level);
 
   // 2. Readiness Checks

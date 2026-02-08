@@ -11,34 +11,46 @@ const RARITY_MULTIPLIERS = {
   [RARITY_TYPES.EPIC]: 6,
   [RARITY_TYPES.LEGENDARY]: 15,
 };
+// Add Shard Rarity Multipliers (Can match your existing ones or be unique)
+const SHARD_RARITY_MULTIPLIERS = {
+  [RARITY_TYPES.COMMON]: 1,
+  [RARITY_TYPES.RARE]: 2,
+  [RARITY_TYPES.EPIC]: 4,
+  [RARITY_TYPES.LEGENDARY]: 8,
+};
 export const LevelConfig = {
-  // 1. How many cards are needed for the next level?
-  // We use a clean step-up: 10, 20, 30, 40...
-  getRequiredCards: (level) => {
-    if (level >= 30) return 0; // Max Level
+  // 1. Cards needed (0 if we are at an Evolution Gate)
+  getRequiredCards: (level, rank = 0) => {
+    if (LevelConfig.isEvolutionGate(level, rank)) return 0;
+    if (level >= 30) return 0;
     return (Math.floor(level / 1) + 1) * 10;
   },
-  // 2. How much Gold does the upgrade cost?
-  // Formula: (Base Cost * Level) * Rarity Multiplier
-  getUpgradeCost: (level, rarity) => {
+
+  // 2. Gold Cost
+  getUpgradeCost: (level, rank = 0, rarity) => {
     const baseCost = 500;
     const multiplier = RARITY_MULTIPLIERS[rarity] || 1;
-    // Evolution levels (10, 20) are 5x more expensive
-    const isEvolution = level > 0 && level % 10 === 0;
-    const evolutionSurcharge = isEvolution ? 5 : 1;
-    return baseCost * level * multiplier * evolutionSurcharge;
+    // Check if we are currently stuck at a level cap
+    const isEvo = LevelConfig.isEvolutionGate(level, rank);
+    // Evolution is 10x base, normal levels use your level multiplier
+    const costMultiplier = isEvo ? 10 : level;
+    return baseCost * costMultiplier * multiplier;
   },
-  // 3. Is this an Evolution Gate?
-  isEvolutionLevel: (level) => {
-    return level > 0 && level % 10 === 0;
+
+  // 3. The "Gate" check
+  // Returns TRUE if the player MUST evolve to go higher
+  isEvolutionGate: (level, rank = 0) => {
+    const maxLevelForCurrentRank = (rank + 1) * 10;
+    return level >= maxLevelForCurrentRank;
   },
-  // 4. Shard Requirements (Only for Evolution levels)
-  // Since you have 4 universal shards, we keep this simple.
-  getRequiredShards: (level) => {
-    if (level === 10) return 2; // Need 2 of each shard
-    if (level === 20) return 5; // Need 5 of each shard
-    if (level === 30) return 10; // Need 10 of each shard
-    return 0;
+
+  // 4. Shard Requirements logic
+  getRequiredShards: (level, rarity = "COMMON") => {
+    let baseAmount = 0;
+    if (level === 10) baseAmount = 5;
+    if (level === 20) baseAmount = 15;
+    const multiplier = SHARD_RARITY_MULTIPLIERS[rarity] || 1;
+    return baseAmount * multiplier;
   },
 };
 // ================= Growth on level upgrades =====================
@@ -50,20 +62,21 @@ export const GROWTH_MODIFIERS = {
 };
 // Example function to calculate stats for the Modal
 export const getStatsAtLevel = (ship, level) => {
-  // Use defaults if stats are missing in the ship object
   let hp = ship.hp || 100;
   let fireRate = ship.fireRate || 250;
   let bVel = ship.bVel || -600;
   let bScale = ship.bScale || 0.6;
+  let dps = ship.dps || 50;
 
-  // Loop from level 1 up to the target level
   for (let i = 1; i < level; i++) {
-    const isEvo = LevelConfig.isEvolutionLevel(i);
+    // Logic: Every 10th level is an evolution for stat purposes
+    const isEvo = i % 10 === 0;
 
-    // Growth Math
     hp *=
       1 +
       (isEvo ? GROWTH_MODIFIERS.HP.evolution : GROWTH_MODIFIERS.HP.standard);
+
+    // Fire rate gets faster (smaller number), so we divide
     fireRate /=
       1 +
       (isEvo
@@ -73,6 +86,9 @@ export const getStatsAtLevel = (ship, level) => {
     if (isEvo) {
       bVel *= 1 + GROWTH_MODIFIERS.B_VEL.evolution;
       bScale *= 1 + GROWTH_MODIFIERS.B_SCALE.evolution;
+      dps *= 1.1; // 10% jump
+    } else {
+      dps *= 1.02; // 2% jump
     }
   }
 
@@ -80,8 +96,8 @@ export const getStatsAtLevel = (ship, level) => {
     hp: Math.round(hp),
     fireRate: Math.round(fireRate),
     bVel: Math.round(bVel),
-    // Fix: Default to 0 before calling toFixed to prevent crash
-    bScale: Number((bScale || 0).toFixed(2)),
+    bScale: Number(bScale.toFixed(2)),
+    damage: Math.round(dps),
   };
 };
 // ================ GEM PRICE CALC ====================
@@ -94,8 +110,17 @@ export const GEM_PRICES = {
   },
   GOLD_TO_GEM_RATIO: 100, // 1 Gem per 100 Gold
 };
-export const calculateMissingGemCost = (missingCards, rarity, missingGold) => {
+// Update Gem Cost logic to include Shards
+export const calculateMissingGemCost = (
+  missingCards,
+  rarity,
+  missingGold,
+  missingShards = 0,
+) => {
   const cardGemCost = missingCards * (GEM_PRICES.CARD_COST[rarity] || 2);
   const goldGemCost = Math.ceil(missingGold / GEM_PRICES.GOLD_TO_GEM_RATIO);
-  return cardGemCost + goldGemCost;
+  // Shard Pricing: 15 Gems per shard (constant value for premium feel)
+  const shardGemCost = missingShards * 15;
+
+  return cardGemCost + goldGemCost + shardGemCost;
 };
