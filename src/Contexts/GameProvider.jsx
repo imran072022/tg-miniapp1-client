@@ -14,7 +14,7 @@ export const GameProvider = ({ children }) => {
   // --- ECONOMY & PLAYER STATE ---
   const [gold, setGold] = useState(999999);
   const [diamonds, setDiamonds] = useState(9999);
-  const [equippedCard, setEquippedCard] = useState("STARTER");
+  const [equippedCard, setEquippedCard] = useState("Vanguard");
   const [goldCollected, setGoldCollected] = useState(0);
   const [isVictory, setIsVictory] = useState(false);
   const [starsEarned, setStarsEarned] = useState(0);

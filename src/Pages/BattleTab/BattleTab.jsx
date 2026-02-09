@@ -1,136 +1,76 @@
 import React from "react";
-import { motion } from "framer-motion";
-import { Swords, Map, Zap, Timer } from "lucide-react";
-import { useGame } from "../../hooks/useGame";
+import PilotHUD from "./PilotHUD";
+import BattleActions from "./BattleActions";
+import StrategicSupply from "./StrategicSupply";
 
 const BattleTab = () => {
-  const {
-    equippedCard,
-    setIsFighting,
-    setGameMode,
-    setSelectedLevel,
-    slots,
-    openChest,
-  } = useGame();
-
-  // For now, we'll map the ship ID to an image path
-  const shipImage = `/assets/ships/${equippedCard.toLowerCase()}.png`;
-
   return (
-    <div className="flex flex-col h-full items-center justify-between py-8 px-6">
-      {/* 1. THE HANGAR (Ship Display) */}
-      <div className="relative w-full flex flex-col items-center justify-center py-10">
-        {/* Holographic Pedestal */}
-        <div className="absolute w-64 h-32 bg-cyan-500/20 rounded-[100%] blur-xl" />
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-          className="absolute w-64 h-32 border-2 border-dashed border-cyan-500/30 rounded-[100%] flex items-center justify-center"
-          style={{ transformStyle: "preserve-3d", transform: "rotateX(75deg)" }}
+    <div className="flex flex-col w-full h-full overflow-hidden relative">
+      {/* ============ BACKGROUND ============ */}
+      {/* Base gradient - tactical gray/blue */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-slate-900 to-gray-950" />
+
+      {/* Tactical hexagonal grid */}
+      <div
+        className="absolute inset-0 opacity-[0.15]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='57' viewBox='0 0 100 57' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0L93.3 14.25V42.75L50 57L6.7 42.75V14.25L50 0Z' fill='none' stroke='%2366b2ff' stroke-width='0.5' stroke-opacity='0.3'/%3E%3C/svg%3E")`,
+          backgroundSize: "120px 68px",
+        }}
+      />
+
+      {/* Command center ambient lighting */}
+      <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-cyan-900/10 via-transparent to-transparent" />
+      <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-blue-900/10 via-transparent to-transparent" />
+
+      {/* Subtle radar sweep */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="absolute top-0 left-0 w-full h-full"
+          style={{
+            background:
+              "conic-gradient(from 0deg, transparent 0%, rgba(59, 130, 246, 0.1) 5%, transparent 10%)",
+            animation: "radar-sweep 20s linear infinite",
+          }}
         />
-
-        {/* The Ship Sprite */}
-        <motion.img
-          key={equippedCard}
-          src={shipImage}
-          alt="Current Ship"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: [0, -15, 0], opacity: 1 }}
-          transition={{
-            y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
-            opacity: { duration: 0.5 },
-          }}
-          className="w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(6,182,212,0.6)] z-10"
-        />
-
-        {/* Ship Info Tag */}
-        <div className="mt-8 text-center z-10">
-          <h3 className="text-2xl font-black italic tracking-widest text-white uppercase drop-shadow-md">
-            {equippedCard}
-          </h3>
-          <div className="flex gap-2 mt-2">
-            <span className="text-[10px] bg-cyan-500/20 px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-400 font-bold">
-              MK-I
-            </span>
-            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-white/10 text-slate-400 font-bold">
-              READY
-            </span>
-          </div>
-        </div>
       </div>
 
-      {/* 2. GAME MODE SELECTION */}
-      <div className="w-full grid grid-cols-2 gap-4">
-        {/* Campaign Button */}
-        <button
-          onClick={() => {
-            /* This will open the level selection map */
-          }}
-          className="group relative overflow-hidden bg-slate-900 border border-white/10 p-4 rounded-3xl transition-all hover:border-cyan-500/50"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Map className="w-6 h-6 text-cyan-400 mb-2" />
-          <div className="text-sm font-black tracking-tighter">CAMPAIGN</div>
-          <div className="text-[9px] text-slate-500 font-bold">
-            SECTOR 01-04
-          </div>
-        </button>
+      {/* Strategic grid lines */}
+      <div
+        className="absolute inset-0 opacity-10"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, #3b82f6 1px, transparent 1px),
+            linear-gradient(to bottom, #3b82f6 1px, transparent 1px)
+          `,
+          backgroundSize: "50px 50px",
+        }}
+      />
 
-        {/* Endless Button */}
-        <button
-          onClick={() => {
-            setGameMode("ENDLESS");
-            setIsFighting(true);
-          }}
-          className="group relative overflow-hidden bg-slate-900 border border-white/10 p-4 rounded-3xl transition-all hover:border-fuchsia-500/50"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Timer className="w-6 h-6 text-fuchsia-400 mb-2" />
-          <div className="text-sm font-black tracking-tighter">SURVIVAL</div>
-          <div className="text-[9px] text-slate-500 font-bold">
-            HIGH SCORE: 0
-          </div>
-        </button>
-      </div>
+      {/* ============ ORIGINAL CONTENT ============ */}
+      <section className="flex-1 min-h-0 flex items-center justify-center overflow-hidden relative z-10">
+        <PilotHUD />
+      </section>
 
-      {/* 3. SUPPLY DROP SLOTS (The Chests) */}
-      <div className="grid grid-cols-4 gap-3 w-full">
-        {slots.map((slot, index) => (
-          <div key={index} className="relative aspect-square">
-            {slot ? (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => openChest(slot.id)}
-                className={`w-full h-full rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all
-            ${
-              slot.status === "READY"
-                ? "bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
-                : "bg-slate-800/40 border-white/5 opacity-80"
-            }`}
-              >
-                {/* Box Icon (Replace with your Box Image) */}
-                <div className="relative">
-                  <div className="w-8 h-8 bg-gradient-to-br from-slate-400 to-slate-600 rounded-lg shadow-lg rotate-3" />
-                  {slot.status === "READY" && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
-                  )}
-                </div>
+      <section className="shrink-0 px-6 py-2 z-30 relative">
+        <BattleActions />
+      </section>
 
-                <span className="text-[8px] font-black tracking-widest uppercase">
-                  {slot.status}
-                </span>
-              </motion.button>
-            ) : (
-              /* Empty Slot */
-              <div className="w-full h-full rounded-2xl border-2 border-dashed border-white/5 bg-black/20 flex items-center justify-center">
-                <span className="text-[10px] text-white/5 font-black uppercase rotate-45">
-                  EMPTY
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      <section className="shrink-0 z-20 relative">
+        <StrategicSupply />
+      </section>
+
+      {/* Add these keyframes to your global CSS */}
+      <style jsx>{`
+        @keyframes radar-sweep {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 };
