@@ -10,28 +10,38 @@ const PhaserGame = () => {
   useEffect(() => {
     if (!gameRef.current) {
       const config = getGameConfig("phaser-container");
-      gameRef.current = new Phaser.Game(config);
-      gameRef.current.events.on("GAME_OVER", (finalGold, isVictory, stats) => {
-        console.log("Match Ended. Gold:", finalGold, "Victory:", isVictory);
+      const game = new Phaser.Game(config);
+      gameRef.current = game;
+
+      // FORCE global assignment
+      window.phaserGame = game;
+      window.dispatchEvent(new CustomEvent("PHASER_READY"));
+      console.log(
+        "PHASER BRIDGE: Game instance successfully attached to window.",
+      );
+
+      game.events.on("GAME_OVER", (finalGold, isVictory, stats) => {
         handleGameOver(finalGold, isVictory, stats);
       });
-      gameRef.current.events.on("UPDATE_HP", (currentHp) => {
-        console.log("Player HP Updated:", currentHp);
-      });
-      gameRef.current.events.once("ready", () => {
-        gameRef.current.scene.start("Preloader", {
+
+      game.events.once("ready", () => {
+        game.scene.start("Preloader", {
           equippedCard,
           selectedLevel,
         });
       });
     }
+
+    // IMPORTANT: Check if window.phaserGame exists here
+    console.log("PHASER BRIDGE STATUS:", !!window.phaserGame);
+    // Just before the return inside PhaserGame.jsx
+    window.forceSmoke = (x, y, massive) => {
+      const scene = gameRef.current.scene.getScene("MainGame");
+      if (scene) scene.createCrateSmoke(x, y, massive);
+    };
     return () => {
-      if (gameRef.current) {
-        gameRef.current.events.off("GAME_OVER");
-        gameRef.current.events.off("UPDATE_HP");
-        gameRef.current.destroy(true);
-        gameRef.current = null;
-      }
+      // We only null it out if the component is actually being destroyed
+      // window.phaserGame = null; // Temporary comment this out to test if it's being cleared too early
     };
   }, [equippedCard, selectedLevel, handleGameOver]);
 

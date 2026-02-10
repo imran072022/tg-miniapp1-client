@@ -80,6 +80,39 @@ export class MainGame extends Phaser.Scene {
       this.cameras.main.shake(100, 0.012);
     }
   }
+
+  createCrateSmoke(isMassive = false) {
+    // 1. Find the crate in the "Real World"
+    const element = window.crateElement;
+    if (!element || !this.scene.isActive()) return;
+
+    const rect = element.getBoundingClientRect();
+    const canvas = this.sys.game.canvas;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // 2. Map coordinates
+    const x =
+      (rect.left + rect.width / 2 - canvasRect.left) *
+      (canvas.width / canvasRect.width);
+    const y =
+      (rect.top + rect.height / 2 - canvasRect.top) *
+      (canvas.height / canvasRect.height);
+
+    // 3. Spawn Particles
+    const smoke = this.add.particles(x, y, "base-rounded-bullet", {
+      speedY: { min: -300, max: -150 },
+      speedX: { min: -40, max: 40 },
+      scale: { start: 1, end: isMassive ? 12 : 5 },
+      alpha: { start: 0.6, end: 0 },
+      rotate: { min: 0, max: 360 },
+      lifespan: isMassive ? 1800 : 1000,
+      tint: 0x555555,
+      maxParticles: isMassive ? 100 : 20,
+    });
+
+    smoke.setDepth(10000);
+    this.time.delayedCall(2000, () => smoke.destroy());
+  }
   setupUI() {
     this.goldText = this.add
       .text(20, 20, `GOLD: ${this.gold}`, {

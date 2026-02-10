@@ -223,6 +223,7 @@ const PilotHUD = () => {
           />
         ))}
       </div>
+
       {/* =============== (2) Combat Rating (top-right corner) ==============*/}
       <div className="absolute top-4 right-6 text-right z-30">
         {/* Label with glow effect */}
@@ -532,7 +533,7 @@ const PilotHUD = () => {
       </div>
 
       {/* ================ (5) SHIP IDENTITY ================*/}
-      <div className="shrink-0 text-center mt-1 mb-2 z-20 orbitron">
+      <div className="absolute bottom-16 text-center z-20 orbitron">
         <div className="inline-flex items-center gap-2 bg-black/40 border border-white/10 px-3 py-0.5 rounded-full mb-1">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
           <span className="text-[10px] font-black text-cyan-400 tracking-widest uppercase ">
@@ -541,7 +542,7 @@ const PilotHUD = () => {
           </span>
         </div>
 
-        <h2 className="text-2xl font-black uppercase leading-none">
+        <h2 className="text-xl font-black uppercase leading-none">
           <span className="bg-gradient-to-r from-cyan-300 via-white to-cyan-300 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">
             {equippedCard}
           </span>

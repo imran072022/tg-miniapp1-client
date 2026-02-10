@@ -52,11 +52,11 @@ const BattleTab = () => {
         <PilotHUD />
       </section>
 
-      <section className="shrink-0 px-6 py-2 z-30 relative">
+      <section className="shrink-0 px-2 pt-4 pb-2 z-30 relative">
         <BattleActions />
       </section>
 
-      <section className="shrink-0 z-20 relative">
+      <section className="shrink-0 z-20 relative py-6">
         <StrategicSupply />
       </section>
 

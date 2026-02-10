@@ -87,7 +87,6 @@ export const GameProvider = ({ children }) => {
       setGoldCollected(gold);
       setIsVictory(victoryStatus);
       setShowResult(true);
-
       if (victoryStatus) {
         // Calculate Stars based on HP percentage
         let stars = 1;
