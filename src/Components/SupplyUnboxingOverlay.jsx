@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const SupplyUnboxingOverlay = ({
-  rewards,
-  onClose,
-  crateClosedImg,
-  crateOpenImg,
-}) => {
+const SupplyUnboxingOverlay = ({ crateRewards, onClose, crateConfig }) => {
   const [isOpened, setIsOpened] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
   const [showFlash, setShowFlash] = useState(false);
@@ -32,7 +27,7 @@ const SupplyUnboxingOverlay = ({
     }
 
     // Move to next reward OR trigger summary if it was the last reward
-    if (currentStep < rewards.length - 1) {
+    if (currentStep < crateRewards?.length - 1) {
       setCurrentStep((prev) => prev + 1);
     } else {
       setIsSummary(true);
@@ -72,14 +67,14 @@ const SupplyUnboxingOverlay = ({
                 className="flex flex-col items-center"
               >
                 <img
-                  src={rewards[currentStep]?.icon}
+                  src={crateRewards[currentStep]?.icon}
                   className="w-32 h-32 object-contain"
                 />
                 <span className="text-white font-black text-5xl mt-2 italic">
-                  +{rewards[currentStep]?.amount}
+                  +{crateRewards[currentStep]?.amount}
                 </span>
                 <span className="text-cyan-400 font-bold text-xs uppercase tracking-[0.4em]">
-                  {rewards[currentStep]?.type}
+                  {crateRewards[currentStep]?.type}
                 </span>
               </motion.div>
             )}
@@ -91,7 +86,7 @@ const SupplyUnboxingOverlay = ({
                 animate={{ opacity: 1, y: 0 }}
                 className="flex flex-wrap gap-4 items-center justify-center px-6"
               >
-                {rewards.map((item, idx) => (
+                {crateRewards.map((item, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ scale: 0 }}
@@ -116,7 +111,7 @@ const SupplyUnboxingOverlay = ({
             {!isOpened ? (
               <motion.img
                 key="closed"
-                src={crateClosedImg}
+                src={crateConfig.closedImg}
                 animate={{ x: [-2, 2, -2, 2, 0], rotate: [-1, 1, -1, 1, 0] }}
                 transition={{ x: { repeat: Infinity, duration: 0.1 } }}
                 className="w-full h-full object-contain"
@@ -125,7 +120,7 @@ const SupplyUnboxingOverlay = ({
               <motion.img
                 // Adding currentStep to the key is the secret—it forces a re-render/re-pulse
                 key={`open-crate-${currentStep}`}
-                src={crateOpenImg}
+                src={crateConfig.openedImg}
                 initial={{ scale: 0.95 }}
                 animate={{
                   y: isSummary ? 20 : 0,

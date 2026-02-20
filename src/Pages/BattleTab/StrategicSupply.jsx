@@ -1,7 +1,24 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SupplyUnboxingOverlay from "../../Components/SupplyUnboxingOverlay";
+import { REWARD_POOL, SUPPLY_CONFIG } from "../../config/SupplyConfig";
 
+const initialConfig = SUPPLY_CONFIG.common;
+// Rewards generating function
+const generateRewards = (config) => {
+  return config.slots.map((slot) => {
+    // 1. If slot is an array, pick one random item from it
+    const itemKey = Array.isArray(slot)
+      ? slot[Math.floor(Math.random() * slot.length)]
+      : slot;
+    const baseItem = REWARD_POOL[itemKey];
+    // 2. Return the item with the rarity multiplier applied
+    return {
+      ...baseItem,
+      amount: Math.floor(baseItem.baseAmount * config.rewardMultiplier),
+    };
+  });
+};
 const StrategicSupply = () => {
   // --- STATES ---
   const [unlocksAt, setUnlocksAt] = useState(Date.now() + 10000);
@@ -9,26 +26,21 @@ const StrategicSupply = () => {
   const [isGhost, setIsGhost] = useState(true);
   const [shouldShake, setShouldShake] = useState(false);
   const [canSmoke, setCanSmoke] = useState(false);
+  const [currentCrate, setCurrentCrate] = useState(SUPPLY_CONFIG.common);
+  const [crateRewards, setCrateRewards] = useState(
+    generateRewards(initialConfig),
+  );
   const [isOpening, setIsOpening] = useState(false);
   const [isClaimed, setIsClaimed] = useState(false);
   const canvasRef = useRef(null);
   const particles = useRef([]);
-  const crateImage = "/assets/Chests/epicClosed.png";
-  const crateOpenedImg = "/assets/Chests/epicOpened.png";
-  const rarityColor = "cyan";
+
   const glowStyles = {
     cyan: "shadow-[0_0_50px_rgba(6,182,212,0.3)] bg-cyan-500/10",
     purple: "shadow-[0_0_50px_rgba(168,85,247,0.3)] bg-purple-500/10",
     amber: "shadow-[0_0_50px_rgba(245,158,11,0.3)] bg-amber-500/10",
   };
-  // Crate unboxing rewards
-  const currentRewards = [
-    { type: "gold", amount: 500, icon: "/assets/recourses/goldForNav.png" },
-    { type: "diamond", amount: 10, icon: "/assets/recourses/handOfGems.png" },
-    { type: "shard", amount: 5, icon: "/assets/Shards/weaponTech.png" },
-  ];
-  // Countdown time
-  const COOLDOWN_TIME = 20000; // 2 Hours in ms
+
   // --- TIME FORMATTER ---
   const formatTime = (ms) => {
     if (!ms || ms <= 0) return "00:00:00";
@@ -99,6 +111,15 @@ const StrategicSupply = () => {
     return () => cancelAnimationFrame(animationFrame);
   }, [canSmoke]);
 
+  // function for rolling rarity for chests
+  const getRandomRarity = () => {
+    const roll = Math.random() * 100;
+    if (roll <= SUPPLY_CONFIG.legendary.chance) return "legendary";
+    if (roll <= SUPPLY_CONFIG.legendary.chance + SUPPLY_CONFIG.epic.chance)
+      return "epic";
+    return "common";
+  };
+
   return (
     <>
       <motion.div
@@ -113,7 +134,7 @@ const StrategicSupply = () => {
         <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className={`absolute left-1/2 -translate-x-1/2 bottom-12 w-64 h-24 rounded-[100%] blur-3xl ${glowStyles[rarityColor]}`}
+          className={`absolute left-1/2 -translate-x-1/2 bottom-12 w-64 h-24 rounded-[100%] blur-3xl ${glowStyles[currentCrate.color]}`}
         />
 
         <div className="relative flex items-center gap-6 pointer-events-auto mb-2">
@@ -128,7 +149,7 @@ const StrategicSupply = () => {
                   className="relative z-10"
                 >
                   <motion.img
-                    src={crateImage}
+                    src={currentCrate.closedImg}
                     style={{
                       filter:
                         "brightness(0.5) sepia(1) hue-rotate(140deg) saturate(3) blur(1px)",
@@ -178,7 +199,7 @@ const StrategicSupply = () => {
                   className="absolute inset-0 z-30 flex items-center justify-center"
                 >
                   <img
-                    src={crateImage}
+                    src={currentCrate.closedImg}
                     className="w-32 h-32 object-contain drop-shadow-2xl"
                   />
                   <canvas
@@ -250,7 +271,7 @@ const StrategicSupply = () => {
                 className={`w-2 h-2 rounded-full ${isGhost ? "bg-cyan-500 animate-ping" : "bg-green-400"}`}
               />
               <h4 className="text-xs font-black text-white tracking-[0.2em] uppercase">
-                {isGhost ? "Supply Drop" : "Verified Supply"}
+                {isGhost ? `${currentCrate.label}` : "Verified Supply"}
               </h4>
             </div>
 
@@ -287,20 +308,19 @@ const StrategicSupply = () => {
       <AnimatePresence>
         {isOpening && (
           <SupplyUnboxingOverlay
-            rewards={currentRewards}
-            crateClosedImg={crateImage} // Using your existing variable
-            crateOpenImg={crateOpenedImg} // Path to your open version
+            crateConfig={currentCrate}
+            crateRewards={crateRewards}
             onClose={() => {
+              const nextRarity = getRandomRarity();
+              const nextConfig = SUPPLY_CONFIG[nextRarity];
+              const generatedRewards = generateRewards(nextConfig);
+              setCrateRewards(generatedRewards);
+              setCurrentCrate(nextConfig);
+              setUnlocksAt(Date.now() + nextConfig.cooldown);
               setIsOpening(false);
               setIsClaimed(true); // Hide the crate/smoke
               setIsGhost(true); // Reset to ghost mode for next time
               setCanSmoke(false); // Stop smoke particles
-
-              // Set the next unlock time to 2 hours from now
-              const nextUnlock = Date.now() + COOLDOWN_TIME;
-              setUnlocksAt(nextUnlock);
-              // Note: You'll need to update 'unlocksAt' state here
-              // if you want the countdown to start immediately.
             }}
           />
         )}
