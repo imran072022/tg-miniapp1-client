@@ -36,7 +36,6 @@ const VictoryOverlay = () => {
   const handleContinue = () => {
     setShowResult(false);
     setIsFighting(false);
-    setSelectedLevel(null);
   };
   const handleReplay = () => {
     setShowResult(false);

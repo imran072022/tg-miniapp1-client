@@ -84,9 +84,18 @@ export const GameProvider = ({ children }) => {
 
   const handleGameOver = useCallback(
     (gold = 0, victoryStatus = false, stats = null) => {
+      console.log("🔥 handleGameOver FIRED in React with:", {
+        gold,
+        victoryStatus,
+        stats,
+        currentSelectedLevel: selectedLevel,
+        currentGameMode: gameMode,
+      });
+
       setGoldCollected(gold);
       setIsVictory(victoryStatus);
       setShowResult(true);
+
       if (victoryStatus) {
         // Calculate Stars based on HP percentage
         let stars = 1;
@@ -97,30 +106,56 @@ export const GameProvider = ({ children }) => {
         }
         setStarsEarned(stars);
 
+        // CRITICAL: Use selectedLevel directly from closure
         if (selectedLevel && gameMode === "STORY") {
+          console.log("📊 Updating level progress for:", selectedLevel.id);
+
           setGold((prev) => prev + gold);
+
           setLevelProgress((prev) => {
-            const currentLevelIndex = prev.findIndex(
+            console.log("Previous level progress:", prev);
+
+            const allLevels = CAMPAIGN_DATA.flatMap((stage) => stage.levels);
+            const currentIdx = allLevels.findIndex(
               (l) => l.id === selectedLevel.id,
             );
-            if (currentLevelIndex !== -1) {
-              return prev.map((lvl, index) => {
-                if (index === currentLevelIndex) {
-                  // Update stars if current run was better
+
+            if (currentIdx !== -1 && currentIdx < allLevels.length - 1) {
+              const nextLevel = allLevels[currentIdx + 1];
+              console.log("Next level to unlock:", nextLevel.id);
+
+              const updated = prev.map((lvl) => {
+                if (lvl.id === selectedLevel.id) {
                   return { ...lvl, stars: Math.max(lvl.stars || 0, stars) };
                 }
-                if (index === currentLevelIndex + 1) {
+                if (nextLevel && lvl.id === nextLevel.id) {
+                  console.log(`✅ UNLOCKING LEVEL ${nextLevel.id}`);
                   return { ...lvl, unlocked: true };
                 }
                 return lvl;
               });
+
+              console.log("Updated level progress:", updated);
+              return updated;
             }
-            return prev;
+
+            console.log("No next level to unlock");
+            return prev.map((lvl) => {
+              if (lvl.id === selectedLevel?.id) {
+                return { ...lvl, stars: Math.max(lvl.stars || 0, stars) };
+              }
+              return lvl;
+            });
+          });
+        } else {
+          console.log("⚠️ No selectedLevel or not STORY mode:", {
+            selectedLevel,
+            gameMode,
           });
         }
       }
     },
-    [selectedLevel, gameMode],
+    [selectedLevel, gameMode], // Keep these dependencies
   );
   const upgradeShip = useCallback(
     (shipId, useGems = false) => {

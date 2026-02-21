@@ -115,8 +115,26 @@ export default class WaveDirector {
         this.loadWave(nextWaveId);
       } else {
         // NO MORE WAVES -> Level Clear!
-        console.log("Campaign Level Waves Exhausted. Victory!");
-        this.scene.handleLevelVictory();
+        console.log(
+          "Campaign Level Waves Exhausted. Waiting for battlefield to clear...",
+        );
+
+        const checkEnemiesCleared = () => {
+          const enemies = this.scene.enemies;
+          const activeCount = enemies ? enemies.countActive(true) : 0;
+          console.log(`Active enemies remaining: ${activeCount}`);
+
+          if (!enemies || activeCount === 0) {
+            console.log("✅ No enemies left! Calling handleLevelVictory()");
+            this.scene.handleLevelVictory();
+          } else {
+            console.log(
+              `⏳ Still ${activeCount} enemies, checking again in 300ms`,
+            );
+            this.scene.time.delayedCall(300, checkEnemiesCleared);
+          }
+        };
+        checkEnemiesCleared();
       }
     } else {
       // Standard Endless: Just keep counting up

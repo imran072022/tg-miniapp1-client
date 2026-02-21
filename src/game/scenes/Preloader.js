@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { CAMPAIGN_DATA } from "../../config/CampaignConfig";
 export class Preloader extends Phaser.Scene {
   constructor() {
     super("Preloader");
@@ -10,8 +11,13 @@ export class Preloader extends Phaser.Scene {
     this.load.path = "/assets/";
     // Background images
     this.load.image("nebula", "battlefieldBg.jpeg");
-    this.load.image("temporaryBG", "temporaryBG.jpg");
-    this.load.image("desertBG", "desertBG.jpg");
+    // Load Stage Backgrounds dynamically
+    CAMPAIGN_DATA.forEach((stage) => {
+      if (stage.bg) {
+        const relativePath = stage.bg.replace("/assets/", "");
+        this.load.image(`stage_bg_${stage.id}`, relativePath);
+      }
+    });
     // Player images
     this.load.image("vanguard", "vanguard.png");
     this.load.image("spaceship1", "spaceShip1.png");

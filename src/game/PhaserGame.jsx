@@ -30,6 +30,13 @@ const PhaserGame = () => {
           selectedLevel,
         });
       });
+    } else {
+      // If the Phaser game already exists (e.g. user selected a level after boot),
+      // restart the Preloader so the new `selectedLevel` is passed into scenes.
+      gameRef.current.scene.start("Preloader", {
+        equippedCard,
+        selectedLevel,
+      });
     }
 
     // IMPORTANT: Check if window.phaserGame exists here

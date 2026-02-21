@@ -16,6 +16,7 @@ import CollisionManager from "../Management/CollisionManager";
 import { EnemyFactory } from "../entities/enemies/EnemyFactory/EnemyFactory";
 import WaveDirector from "../Management/WaveDirector";
 import UIHelper from "../Management/UIHelper";
+import { CAMPAIGN_DATA } from "../../config/CampaignConfig";
 export class MainGame extends Phaser.Scene {
   constructor() {
     super("MainGame");
@@ -131,8 +132,19 @@ export class MainGame extends Phaser.Scene {
     const { width, height } = this.scale;
     // 1. Visuals & Background
     this.cameras.main.setBackgroundColor("#000000");
+    let bgKey = "nebula";
+
+    if (this.mode === "story" && this.levelData) {
+      // Find which stage this level belongs to
+      const stage = CAMPAIGN_DATA.find((s) =>
+        s.levels.some((l) => l.id === this.levelData.id),
+      );
+      if (stage) {
+        bgKey = `stage_bg_${stage.id}`;
+      }
+    }
     this.bg = this.add
-      .tileSprite(0, 0, width, height, "nebula")
+      .tileSprite(0, 0, width, height, bgKey) // Use the dynamic key
       .setOrigin(0, 0)
       .setDepth(-1);
     // 2. Groups (Must be first)
@@ -231,7 +243,20 @@ export class MainGame extends Phaser.Scene {
       console.log("Story Level Complete!");
       if (this.player) this.player.setInvulnerable(true);
       this.time.delayedCall(3000, () => {
-        this.game.events.emit("GAME_OVER", this.score, true); // true = Victory
+        // ADD THIS DEBUG LOG
+        console.log("🚀 EMITTING GAME_OVER with:", {
+          gold: this.gold,
+          victory: true,
+          hp: this.player?.hp,
+          maxHp: this.player?.maxHp,
+          mode: this.mode,
+          levelData: this.levelData,
+        });
+
+        this.game.events.emit("GAME_OVER", this.gold, true, {
+          hp: this.player.hp,
+          maxHp: this.player.maxHp,
+        });
       });
     } else {
       // --- ENDLESS CONTINUATION ---
@@ -246,15 +271,28 @@ export class MainGame extends Phaser.Scene {
   }
 
   handleLevelVictory() {
+    if (this.isGameOver) return; // Prevent double triggers
+    this.isGameOver = true;
+
+    console.log("🎉 handleLevelVictory CALLED - Victory!");
+
     // 1. Show a banner
     if (this.uiHelper) {
       this.uiHelper.showWaveBanner("MISSION CLEAR", "SECTOR SECURED", 0x00ff00);
     }
+
     // 2. Stop spawning
     if (this.waveDirector) this.waveDirector.stop();
+
     // 3. Wait for the player to enjoy the win, then return to React
     this.time.delayedCall(3000, () => {
-      // Send 'true' as the second argument to unlock the next level in GameProvider
+      console.log("📤 Emitting GAME_OVER with:", {
+        gold: this.gold,
+        victory: true,
+        hp: this.player?.hp,
+        maxHp: this.player?.maxHp,
+      });
+
       this.game.events.emit("GAME_OVER", this.gold, true, {
         hp: this.player.hp,
         maxHp: this.player.maxHp,
@@ -279,6 +317,9 @@ export class MainGame extends Phaser.Scene {
     // 3. Camera Shake for impact
     this.cameras.main.shake(1000, 0.01);
   }
+  /**
+   * Called when the player takes damage. Triggers defeat/game over if HP <= 0.
+   */
   takeDamage(amount) {
     if (this.isGameOver) return;
     this.player.hp -= amount;
@@ -290,6 +331,17 @@ export class MainGame extends Phaser.Scene {
     if (this.player.hp <= 0) {
       this.isGameOver = true;
       this.physics.pause();
+
+      // ADD THIS DEBUG LOG
+      console.log("💀 EMITTING GAME_OVER with:", {
+        gold: this.gold,
+        victory: false,
+        hp: 0,
+        maxHp: this.player.maxHp,
+        mode: this.mode,
+        levelData: this.levelData,
+      });
+
       this.game.events.emit("GAME_OVER", this.gold, false, {
         hp: 0,
         maxHp: this.player.maxHp,

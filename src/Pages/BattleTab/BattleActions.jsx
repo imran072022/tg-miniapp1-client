@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Map, Zap } from "lucide-react";
 import { useGame } from "../../hooks/useGame";
 
-const BattleActions = () => {
+const BattleActions = ({ onOpenCampaign }) => {
   const { setGameMode, setIsFighting, selectedLevel } = useGame();
 
   const handleStart = (mode) => {
@@ -30,7 +30,7 @@ const BattleActions = () => {
           <motion.button
             whileHover={{ scale: 1.03, y: -2 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => handleStart("CAMPAIGN")}
+            onClick={() => onOpenCampaign?.()}
             className="flex-1 relative h-20 rounded-xl overflow-hidden group"
           >
             {/* Glowing Border */}

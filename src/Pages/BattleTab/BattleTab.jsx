@@ -3,7 +3,7 @@ import PilotHUD from "./PilotHUD";
 import BattleActions from "./BattleActions";
 import StrategicSupply from "./StrategicSupply";
 
-const BattleTab = () => {
+const BattleTab = ({ onOpenCampaign }) => {
   return (
     <div className="flex flex-col w-full h-full overflow-hidden relative">
       {/* ============ BACKGROUND ============ */}
@@ -53,7 +53,7 @@ const BattleTab = () => {
       </section>
 
       <section className="shrink-0 px-2 pt-4 pb-2 z-20 relative">
-        <BattleActions />
+        <BattleActions onOpenCampaign={onOpenCampaign} />
       </section>
 
       <section className="shrink-0 z-21 relative py-6">
