@@ -3,7 +3,9 @@ import { useGame } from "../../../hooks/useGame";
 import { CAMPAIGN_DATA } from "../../../config/CampaignConfig";
 import { AnimatePresence, motion } from "framer-motion";
 import LevelNodes from "./LevelNodes";
-
+import { useDropdownAnchor } from "./hooks/useDropdownAnchor";
+import { useStagePreload } from "./hooks/useStagePreload";
+import { useClickOutside } from "../../../hooks/useClickOutside";
 const CampaignMap = ({ onBack }) => {
   const {
     selectedLevel,
@@ -17,85 +19,13 @@ const CampaignMap = ({ onBack }) => {
   const dropdownRef = useRef(null);
   const nodeRefs = useRef({}); // ← Store all node refs here
   const scrollRef = useRef(null);
-  const [dropdownPosition, setDropdownPosition] = useState(false);
-  const [ready, setReady] = useState(false);
-  const [dropdownReady, setDropdownReady] = useState(false);
-
-  const updateDropdownPosition = useCallback(() => {
-    if (!selectedLevel) return;
-
-    const node = nodeRefs.current[selectedLevel.id];
-    if (!node) return;
-
-    const rect = node.getBoundingClientRect();
-
-    const centerX = rect.left + rect.width / 2;
-    const bottomY = rect.bottom;
-
-    // Position dropdown
-    setDropdownPosition({
-      left: centerX,
-      top: bottomY + 10,
-    });
-
-    // 🔥 THIS is what your deleted effect used to do
-    setDropdownReady(true);
-  }, [selectedLevel, nodeRefs]);
-  useEffect(() => {
-    if (!selectedLevel) return;
-
-    setDropdownReady(false);
-
-    // run measurement on next frame (ensures DOM is ready)
-    requestAnimationFrame(() => {
-      updateDropdownPosition();
-    });
-  }, [selectedLevel, updateDropdownPosition]);
-  useEffect(() => {
-    if (!selectedLevel) return;
-
-    const scrollEl = scrollRef.current;
-
-    if (!scrollEl) return;
-
-    scrollEl.addEventListener("scroll", updateDropdownPosition);
-    window.addEventListener("resize", updateDropdownPosition);
-
-    // run once immediately
-    updateDropdownPosition();
-
-    return () => {
-      scrollEl.removeEventListener("scroll", updateDropdownPosition);
-      window.removeEventListener("resize", updateDropdownPosition);
-    };
-  }, [selectedLevel, updateDropdownPosition]);
-  useEffect(() => {
-    let loaded = 0;
-    const total = CAMPAIGN_DATA.length;
-
-    CAMPAIGN_DATA.forEach((stage) => {
-      const img = new Image();
-      img.onload = () => {
-        loaded++;
-        if (loaded === total) setReady(true);
-      };
-      img.src = stage.bg;
-    });
-  }, []);
-
-  // Close when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (!selectedLevel) return;
-      const isNode = e.target.closest("[data-level-id]");
-      const isDropdown = dropdownRef.current?.contains(e.target);
-      if (!isNode && !isDropdown) {
-        setSelectedLevel(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [selectedLevel, setSelectedLevel]);
+  const { dropdownPosition, dropdownReady } = useDropdownAnchor({
+    selectedLevel,
+    nodeRefs,
+    scrollRef,
+  });
+  const ready = useStagePreload();
+  useClickOutside(dropdownRef, () => setSelectedLevel(null), !!selectedLevel);
 
   // Clear on mount
   useEffect(() => {
